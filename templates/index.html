@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DFA Bank Check Validator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f0f4f8;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .card-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .card-header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #1a202c;
+    }
+
+    .card-header p {
+      color: #718096;
+      margin-top: 0.4rem;
+      font-size: 0.93rem;
+    }
+
+    .field-group {
+      margin-bottom: 1.2rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 0.35rem;
+    }
+
+    .input-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 0.55rem 0.75rem;
+      font-size: 0.95rem;
+      border: 1.5px solid #cbd5e0;
+      border-radius: 7px;
+      outline: none;
+      transition: border-color 0.2s;
+      color: #1a202c;
+    }
+
+    input[type="text"]:focus {
+      border-color: #4299e1;
+    }
+
+    input[type="text"].valid {
+      border-color: #48bb78;
+    }
+
+    input[type="text"].invalid {
+      border-color: #f56565;
+    }
+
+    .status-icon {
+      font-size: 1.2rem;
+      width: 1.4rem;
+      text-align: center;
+      flex-shrink: 0;
+      visibility: hidden;
+    }
+
+    .field-message {
+      font-size: 0.78rem;
+      margin-top: 0.3rem;
+      min-height: 1rem;
+      color: #f56565;
+    }
+
+    .field-message.ok {
+      color: #38a169;
+    }
+
+    button[type="submit"] {
+      width: 100%;
+      padding: 0.75rem;
+      background: #4299e1;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 0.8rem;
+      transition: background 0.2s;
+    }
+
+    button[type="submit"]:hover {
+      background: #3182ce;
+    }
+
+    button[type="submit"]:disabled {
+      background: #a0aec0;
+      cursor: not-allowed;
+    }
+
+    #overall-result {
+      margin-top: 1.2rem;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 0.93rem;
+      font-weight: 600;
+      display: none;
+      text-align: center;
+    }
+
+    #overall-result.all-valid {
+      background: #f0fff4;
+      color: #276749;
+      border: 1.5px solid #9ae6b4;
+    }
+
+    #overall-result.has-errors {
+      background: #fff5f5;
+      color: #c53030;
+      border: 1.5px solid #feb2b2;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="card-header">
+      <h1>DFA Bank Check Validator</h1>
+      <p>Enter check details below to validate each field.</p>
+    </div>
+
+    <form id="check-form" novalidate>
+      <div class="field-group" data-field="routing_number">
+        <label for="routing_number">Routing Number</label>
+        <div class="input-row">
+          <input type="text" id="routing_number" name="routing_number"
+                 placeholder="e.g. 122105155" autocomplete="off" />
+          <span class="status-icon" aria-hidden="true"></span>
+        </div>
+        <div class="field-message"></div>
+      </div>
+
+      <div class="field-group" data-field="account_number">
+        <label for="account_number">Account Number</label>
+        <div class="input-row">
+          <input type="text" id="account_number" name="account_number"
+                 placeholder="e.g. 123456789" autocomplete="off" />
+          <span class="status-icon" aria-hidden="true"></span>
+        </div>
+        <div class="field-message"></div>
+      </div>
+
+      <div class="field-group" data-field="amount">
+        <label for="amount">Amount</label>
+        <div class="input-row">
+          <input type="text" id="amount" name="amount"
+                 placeholder="e.g. 1,234.56" autocomplete="off" />
+          <span class="status-icon" aria-hidden="true"></span>
+        </div>
+        <div class="field-message"></div>
+      </div>
+
+      <div class="field-group" data-field="date">
+        <label for="date">Date (MM/DD/YYYY)</label>
+        <div class="input-row">
+          <input type="text" id="date" name="date"
+                 placeholder="e.g. 06/08/2026" autocomplete="off" />
+          <span class="status-icon" aria-hidden="true"></span>
+        </div>
+        <div class="field-message"></div>
+      </div>
+
+      <div class="field-group" data-field="memo">
+        <label for="memo">Memo</label>
+        <div class="input-row">
+          <input type="text" id="memo" name="memo"
+                 placeholder="e.g. Rent June" autocomplete="off" />
+          <span class="status-icon" aria-hidden="true"></span>
+        </div>
+        <div class="field-message"></div>
+      </div>
+
+      <button type="submit" id="submit-btn">Validate Check</button>
+    </form>
+
+    <div id="overall-result"></div>
+  </div>
+
+  <script>
+    const form = document.getElementById('check-form');
+    const submitBtn = document.getElementById('submit-btn');
+    const overallResult = document.getElementById('overall-result');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Validating…';
+
+      const payload = {
+        routing_number: form.routing_number.value.trim(),
+        account_number: form.account_number.value.trim(),
+        amount:         form.amount.value.trim(),
+        date:           form.date.value.trim(),
+        memo:           form.memo.value.trim(),
+      };
+
+      try {
+        const res = await fetch('/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) throw new Error('Server error: ' + res.status);
+        const data = await res.json();
+        applyResults(data, payload);
+      } catch (err) {
+        overallResult.textContent = 'Error contacting server. Please try again.';
+        overallResult.className = 'has-errors';
+        overallResult.style.display = 'block';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Validate Check';
+      }
+    });
+
+    function applyResults(data, payload) {
+      let allValid = true;
+
+      for (const [fieldName, info] of Object.entries(data)) {
+        const group = document.querySelector(`.field-group[data-field="${fieldName}"]`);
+        if (!group) continue;
+
+        const input = group.querySelector('input');
+        const icon  = group.querySelector('.status-icon');
+        const msg   = group.querySelector('.field-message');
+
+        // If the field was left blank by user, skip visual feedback
+        if (!payload[fieldName]) {
+          input.classList.remove('valid', 'invalid');
+          icon.style.visibility = 'hidden';
+          icon.textContent = '';
+          msg.textContent = '';
+          msg.className = 'field-message';
+          continue;
+        }
+
+        if (info.valid === true) {
+          input.classList.remove('invalid');
+          input.classList.add('valid');
+          icon.textContent = '✔';
+          icon.style.visibility = 'visible';
+          icon.style.color = '#38a169';
+          msg.textContent = '';
+          msg.className = 'field-message ok';
+        } else {
+          allValid = false;
+          input.classList.remove('valid');
+          input.classList.add('invalid');
+          icon.textContent = '✘';
+          icon.style.visibility = 'visible';
+          icon.style.color = '#e53e3e';
+          msg.textContent = info.message || 'Invalid value';
+          msg.className = 'field-message';
+        }
+      }
+
+      // Check if all provided fields were valid
+      const providedFields = Object.keys(payload).filter(k => payload[k]);
+      const allProvidedValid = providedFields.every(k => data[k] && data[k].valid === true);
+
+      overallResult.style.display = 'block';
+      if (providedFields.length === 0) {
+        overallResult.textContent = 'Please fill in at least one field.';
+        overallResult.className = 'has-errors';
+      } else if (allProvidedValid) {
+        overallResult.textContent = '✔ All fields are valid!';
+        overallResult.className = 'all-valid';
+      } else {
+        overallResult.textContent = '✘ Some fields failed validation. See details above.';
+        overallResult.className = 'has-errors';
+      }
+    }
+  </script>
+</body>
+</html>
