@@ -1,344 +1,558 @@
 {% extends "base.html" %}
 {% block title %}{{ case.system_uid }} — DFA Bank Check Pipeline{% endblock %}
-{% block page_title %}Case: {{ case.system_uid }}{% endblock %}
+{% block page_title %}{{ case.system_uid }}{% endblock %}
 
 {% block content %}
 
-{# ── Status Banners ── #}
-{% if case.status == 'Cleared' %}
-<div class="banner-cleared">
-  <div class="banner-icon">&#10003;</div>
-  <div>
-    <h3>CHECK CLEARED — Household Total: ${{ "%.2f"|format(case.household_total or 0) }} / Threshold: ${{ "%.2f"|format(case.threshold_limit or 0) }}</h3>
-    <p>This household's total balance is within the assigned threshold. Benefits may continue.</p>
+{# ── Back link + header meta ── #}
+<div style="display:flex; align-items:center; gap:16px; margin-bottom:24px; flex-wrap:wrap;">
+  <a href="/dashboard" class="btn btn-secondary btn-sm">&larr; Dashboard</a>
+  <div style="display:flex; gap:10px; flex-wrap:wrap;">
+    <span style="font-size:0.8rem; color:#64748b;">Principal FAS: <strong style="color:#1e293b;">{{ case.principal_fas }}</strong></span>
+    <span style="font-size:0.8rem; color:#64748b;">Category: <strong style="color:#1e293b;">{{ case.hh_category }}</strong></span>
+    <span style="font-size:0.8rem; color:#64748b;">Threshold: <strong style="color:#1e293b;">${{ "{:,.0f}".format(case.threshold_limit or 0) }}</strong></span>
+    <span style="font-size:0.8rem; color:#64748b;">Officer: <strong style="color:#1e293b;">{{ case.assigned_officer }}</strong></span>
   </div>
 </div>
-{% elif case.status == 'OVER LIMIT' %}
-<div class="banner-overlimit">
-  <div class="banner-top">
-    <div class="banner-icon">&#9888;</div>
+
+{# ══════════════════════════════════════════════════
+   PHASE PROGRESS BAR
+══════════════════════════════════════════════════ #}
+{% set ph1_done = true %}
+{% set ph2_done = case.status in ('Sent to Banks','Partial Return','Returned','Cleared','OVER LIMIT') %}
+{% set ph3_done = case.status in ('Partial Return','Cleared','OVER LIMIT') %}
+{% set ph3_partial = case.status == 'Partial Return' %}
+{% set ph4_done = case.status in ('Cleared','OVER LIMIT') %}
+
+<div class="phase-track">
+  <div class="phase-node {{ 'done' if ph1_done else '' }}">
+    <div class="phase-circle">{% if ph1_done %}&#10003;{% else %}1{% endif %}</div>
+    <div class="phase-name">Phase 1</div>
+    <div class="phase-sub">Officer Input</div>
+  </div>
+  <div class="phase-line {{ 'done' if ph2_done else '' }}"></div>
+  <div class="phase-node {{ 'done' if ph2_done else 'active' if ph1_done else '' }}">
+    <div class="phase-circle">{% if ph2_done %}&#10003;{% else %}2{% endif %}</div>
+    <div class="phase-name">Phase 2</div>
+    <div class="phase-sub">Friday Batch</div>
+  </div>
+  <div class="phase-line {{ 'done' if ph3_done else '' }}"></div>
+  <div class="phase-node {{ 'partial' if ph3_partial else 'done' if ph3_done else 'active' if ph2_done else '' }}">
+    <div class="phase-circle">{% if ph3_partial %}&#9203;{% elif ph3_done %}&#10003;{% else %}3{% endif %}</div>
+    <div class="phase-name">Phase 3</div>
+    <div class="phase-sub">Bank Returns</div>
+  </div>
+  <div class="phase-line {{ 'done' if ph4_done else '' }}"></div>
+  <div class="phase-node {{ 'overlimit' if case.status=='OVER LIMIT' else 'done' if ph4_done else '' }}">
+    <div class="phase-circle">{% if case.status=='OVER LIMIT' %}&#9888;{% elif ph4_done %}&#10003;{% else %}4{% endif %}</div>
+    <div class="phase-name">Phase 4</div>
+    <div class="phase-sub">Decision</div>
+  </div>
+</div>
+
+{# ══════════════════════════════════════════════════
+   PHASE 1 — OFFICER INPUT
+══════════════════════════════════════════════════ #}
+<div class="phase-section phase-1">
+  <div class="phase-header">
+    <div class="phase-badge ph1">Phase 1</div>
     <div>
-      <h3>&#9888; OVER LIMIT</h3>
-      <p>This household's total balance exceeds the assigned threshold.</p>
+      <div class="phase-title">Officer Input — SharePoint List</div>
+      <div class="phase-desc">Case created, fields validated, status set to Pending</div>
     </div>
+    <div class="phase-status-pill done-pill">&#10003; Complete</div>
   </div>
-  <div class="suspension-letter">DEPARTMENT OF FAMILY ASSISTANCE
-BANK CHECK SUSPENSION NOTICE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-DATE:          {{ case.created_at[:10] if case.created_at else 'N/A' }}
-CASE ID:       {{ case.system_uid }}
-PRINCIPAL FAS: {{ case.principal_fas }}
-
-MEMBER(S):
-{% for row in alias_rows %}  - {{ row.client_name }}{% if returns %} — ${{ "%.2f"|format(returns[loop.index0].current_balance if loop.index0 < returns|length else 0) }}{% endif %}
-
-{% endfor %}
-HOUSEHOLD TOTAL: ${{ "%.2f"|format(case.household_total or 0) }}
-THRESHOLD:       ${{ "%.2f"|format(case.threshold_limit or 0) }}
-OVERAGE:         ${{ "%.2f"|format((case.household_total or 0) - (case.threshold_limit or 0)) }}
-
-It has been determined through the DFA Bank Check Processing Pipeline
-that the above-referenced household holds financial assets that exceed
-the program threshold for the {{ case.hh_category }} category.
-
-As a result, benefits for this household are hereby SUSPENDED pending
-a formal review by the assigned officer ({{ case.assigned_officer }})
-and manager ({{ case.assigned_manager or 'N/A' }}).
-
-This notice was generated automatically by the DFA Check Pipeline.
-Please retain this document for your records.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-DFA Bank Check Processing System — CONFIDENTIAL</div>
-</div>
-{% elif case.status == 'Partial Return' %}
-<div class="banner-partial">
-  <div class="banner-icon">&#9203;</div>
-  <div>
-    <h3>&#9203; PARTIAL RETURN — Waiting for remaining bank responses</h3>
-    <p>Some banks have returned data. Awaiting responses from all banks before final determination.</p>
-  </div>
-</div>
-{% endif %}
-
-{# ── Pipeline Timeline ── #}
-<div class="card">
-  <div class="card-title">Pipeline Status Timeline</div>
-  {% set step_created = true %}
-  {% set step_roi = case.roi_status == 'Uploaded' %}
-  {% set step_sent = case.status in ('Sent to Banks', 'Partial Return', 'Returned', 'Cleared', 'OVER LIMIT') %}
-  {% set step_response = case.status in ('Partial Return', 'Returned', 'Cleared', 'OVER LIMIT') %}
-  {% set step_done = case.status in ('Cleared', 'OVER LIMIT') %}
-
-  <div class="timeline">
-    <div class="tl-step done">
-      <div class="tl-dot">&#10003;</div>
-      <div class="tl-label">Case Created</div>
-    </div>
-    <div class="tl-step {{ 'done' if step_roi else 'active' if not step_roi and not step_sent else '' }}">
-      <div class="tl-dot">{{ '✓' if step_roi else '2' }}</div>
-      <div class="tl-label">ROI Uploaded</div>
-    </div>
-    <div class="tl-step {{ 'done' if step_sent else '' }}">
-      <div class="tl-dot">{{ '✓' if step_sent else '3' }}</div>
-      <div class="tl-label">Sent to Banks</div>
-    </div>
-    <div class="tl-step {{ 'done' if step_response else '' }}">
-      <div class="tl-dot">{{ '✓' if step_response else '4' }}</div>
-      <div class="tl-label">Bank Return(s) Received</div>
-    </div>
-    <div class="tl-step {{ 'done' if step_done else '' }}">
-      <div class="tl-dot">{{ '✓' if step_done else '5' }}</div>
-      <div class="tl-label">
-        {% if case.status == 'Cleared' %}Cleared
-        {% elif case.status == 'OVER LIMIT' %}Over Limit
-        {% else %}Cleared / Over Limit{% endif %}
+  <div class="phase-body">
+    <div class="detail-grid">
+      <div class="detail-field">
+        <div class="field-label">System UID</div>
+        <div class="field-value mono">{{ case.system_uid }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="field-label">Principal FAS</div>
+        <div class="field-value">{{ case.principal_fas or '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="field-label">Individual FAS</div>
+        <div class="field-value">{{ case.individual_fas or '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="field-label">Household Category</div>
+        <div class="field-value">{{ case.hh_category or '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="field-label">Threshold Limit</div>
+        <div class="field-value">${{ "{:,.0f}".format(case.threshold_limit or 0) }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="field-label">Created At</div>
+        <div class="field-value">{{ case.created_at[:16].replace('T',' ') if case.created_at else '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="field-label">Assigned Officer</div>
+        <div class="field-value">{{ case.assigned_officer or '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="field-label">Assigned Manager</div>
+        <div class="field-value">{{ case.assigned_manager or '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="field-label">Processing Status</div>
+        <div class="field-value">
+          {% if case.status == 'Pending' %}<span class="badge badge-pending">Pending</span>
+          {% elif case.status == 'Incomplete' %}<span class="badge badge-incomplete">Incomplete</span>
+          {% else %}<span class="badge badge-sent">{{ case.status }}</span>{% endif %}
+        </div>
       </div>
     </div>
-  </div>
-</div>
 
-{# ── Case Header Info ── #}
-<div class="card">
-  <div class="card-title">Case Overview</div>
-  <div class="detail-grid">
-    <div class="detail-field">
-      <div class="field-label">System UID</div>
-      <div class="field-value"><strong>{{ case.system_uid }}</strong></div>
-    </div>
-    <div class="detail-field">
-      <div class="field-label">Principal FAS</div>
-      <div class="field-value">{{ case.principal_fas or '—' }}</div>
-    </div>
-    <div class="detail-field">
-      <div class="field-label">Individual FAS</div>
-      <div class="field-value">{{ case.individual_fas or '—' }}</div>
-    </div>
-    <div class="detail-field">
-      <div class="field-label">Status</div>
-      <div class="field-value">
-        {% if case.status == 'Pending' %}<span class="badge badge-pending">Pending</span>
-        {% elif case.status == 'Sent to Banks' %}<span class="badge badge-sent">Sent to Banks</span>
-        {% elif case.status == 'Partial Return' %}<span class="badge badge-partial">Partial Return</span>
-        {% elif case.status == 'Returned' %}<span class="badge badge-returned">Returned</span>
-        {% elif case.status == 'Cleared' %}<span class="badge badge-cleared">Cleared</span>
-        {% elif case.status == 'OVER LIMIT' %}<span class="badge badge-overlimit">Over Limit</span>
-        {% elif case.status == 'Incomplete' %}<span class="badge badge-incomplete">Incomplete</span>
-        {% else %}<span class="badge badge-pending">{{ case.status }}</span>{% endif %}
+    {# Alias table #}
+    <div style="margin-top:20px;">
+      <div style="font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#94a3b8; margin-bottom:10px;">
+        Alias Rows — {{ alias_rows|length }} name{{ 's' if alias_rows|length != 1 else '' }} on this case
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>Client Name</th><th>Individual FAS</th><th>DOB</th><th>Disability</th><th>Address</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in alias_rows %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td><strong>{{ row.client_name }}</strong></td>
+              <td>{{ row.individual_fas or '—' }}</td>
+              <td>{{ row.dob or '—' }}</td>
+              <td>{% if row.disability_flag %}<span class="badge badge-overlimit">Yes</span>{% else %}<span style="color:#94a3b8;">No</span>{% endif %}</td>
+              <td style="font-size:0.8rem; color:#64748b;">{{ row.physical_address or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
     </div>
-    <div class="detail-field">
-      <div class="field-label">Household Category</div>
-      <div class="field-value">{{ case.hh_category or '—' }}</div>
-    </div>
-    <div class="detail-field">
-      <div class="field-label">Threshold Limit</div>
-      <div class="field-value">${{ "%.2f"|format(case.threshold_limit or 0) }}</div>
-    </div>
-    <div class="detail-field">
-      <div class="field-label">ROI Status</div>
-      <div class="field-value">
+
+    {# ROI action #}
+    <div style="margin-top:16px; padding-top:16px; border-top:1px solid #e2e8f0; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+      <div>
+        <span style="font-size:0.8rem; font-weight:600; color:#374151;">ROI Status:</span>
         {% if case.roi_status == 'Uploaded' %}
-          <span class="badge badge-uploaded">Uploaded</span>
-          {% if case.roi_link %} <span style="font-size:0.78rem; color:#64748b;">{{ case.roi_link }}</span>{% endif %}
+          <span class="badge badge-uploaded" style="margin-left:6px;">&#10003; Uploaded</span>
+          {% if case.roi_link %}<span style="font-size:0.75rem; color:#64748b; margin-left:8px;">{{ case.roi_link }}</span>{% endif %}
         {% else %}
-          <span class="badge badge-not-uploaded">Not Uploaded</span>
+          <span class="badge badge-not-uploaded" style="margin-left:6px;">&#9888; Not Uploaded</span>
         {% endif %}
       </div>
+      {% if case.roi_status == 'Not Uploaded' %}
+      <form method="POST" action="/cases/{{ case.system_uid }}/upload-roi" style="display:inline;">
+        <button type="submit" class="btn btn-warning btn-sm">&#8679; Simulate ROI Upload</button>
+      </form>
+      <span style="font-size:0.75rem; color:#94a3b8;">Case will be eligible for Friday batch once uploaded.</span>
+      {% endif %}
     </div>
-    <div class="detail-field">
-      <div class="field-label">Assigned Officer</div>
-      <div class="field-value">{{ case.assigned_officer or '—' }}</div>
+  </div>
+</div>
+
+{# ══════════════════════════════════════════════════
+   PHASE 2 — FRIDAY BATCH
+══════════════════════════════════════════════════ #}
+<div class="phase-section phase-2 {{ '' if ph2_done or ph1_done else 'phase-locked' }}">
+  <div class="phase-header">
+    <div class="phase-badge ph2">Phase 2</div>
+    <div>
+      <div class="phase-title">Friday Batch — Scheduled Dispatch</div>
+      <div class="phase-desc">Recurrence trigger every Friday 08:00 · Build Excel · Send to banks · Status → Sent</div>
     </div>
-    <div class="detail-field">
-      <div class="field-label">Assigned Manager</div>
-      <div class="field-value">{{ case.assigned_manager or '—' }}</div>
+    {% if ph2_done %}
+      <div class="phase-status-pill done-pill">&#10003; Sent {{ case.sent_at[:10] if case.sent_at else '' }}</div>
+    {% elif case.roi_status == 'Not Uploaded' %}
+      <div class="phase-status-pill warn-pill">&#9888; Waiting for ROI</div>
+    {% else %}
+      <div class="phase-status-pill pending-pill">&#9711; Ready for batch</div>
+    {% endif %}
+  </div>
+
+  <div class="phase-body">
+    {% if ph2_done %}
+    <div class="phase-info-row">
+      <div class="info-item">
+        <div class="info-label">Sent At</div>
+        <div class="info-value">{{ case.sent_at[:16].replace('T',' ') if case.sent_at else '—' }}</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">Excel Schema</div>
+        <div class="info-value mono" style="font-size:0.75rem;">System UID · Principal FAS · Individual FAS · Client Name · DOB · Address</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">ROI Attachment</div>
+        <div class="info-value">{{ case.roi_link or '—' }}</div>
+      </div>
     </div>
-    <div class="detail-field">
-      <div class="field-label">Created At</div>
-      <div class="field-value">{{ case.created_at[:19].replace('T', ' ') if case.created_at else '—' }}</div>
-    </div>
-    <div class="detail-field">
-      <div class="field-label">Sent At</div>
-      <div class="field-value">{{ case.sent_at[:19].replace('T', ' ') if case.sent_at else '—' }}</div>
-    </div>
-    {% if case.household_total is not none %}
-    <div class="detail-field">
-      <div class="field-label">Household Total</div>
-      <div class="field-value"><strong>${{ "%.2f"|format(case.household_total) }}</strong></div>
+    {% else %}
+    <div class="phase-waiting">
+      {% if case.roi_status == 'Not Uploaded' %}
+        &#9888; This case will be <strong>skipped</strong> from the Friday batch until the ROI is uploaded. Upload the ROI in Phase 1 above first.
+      {% else %}
+        &#9711; ROI uploaded. This case will be included in the next Friday batch. Use the <strong>Run Friday Batch</strong> button on the Dashboard to dispatch now.
+      {% endif %}
     </div>
     {% endif %}
   </div>
 </div>
 
-{# ── Action Buttons ── #}
-<div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:24px;">
-  {% if case.roi_status == 'Not Uploaded' %}
-  <form method="POST" action="/cases/{{ case.system_uid }}/upload-roi" style="display:inline;">
-    <button type="submit" class="btn btn-warning">&#8679; Upload ROI (Simulate)</button>
-  </form>
-  {% endif %}
-  <a href="/dashboard" class="btn btn-secondary">&larr; Back to Dashboard</a>
-</div>
-
-{# ── Alias Rows Table ── #}
-<div class="card">
-  <div class="card-title">Alias Rows ({{ alias_rows|length }} alias{{ 'es' if alias_rows|length != 1 else '' }})</div>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Client Name</th>
-          <th>Individual FAS</th>
-          <th>Date of Birth</th>
-          <th>Disability</th>
-          <th>Physical Address</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in alias_rows %}
-        <tr>
-          <td>{{ loop.index }}</td>
-          <td><strong>{{ row.client_name }}</strong></td>
-          <td>{{ row.individual_fas or '—' }}</td>
-          <td>{{ row.dob or '—' }}</td>
-          <td>
-            {% if row.disability_flag %}
-              <span class="badge badge-overlimit">Yes</span>
-            {% else %}
-              <span style="color:#94a3b8;">No</span>
-            {% endif %}
-          </td>
-          <td>{{ row.physical_address or '—' }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+{# ══════════════════════════════════════════════════
+   PHASE 3 — BANK RETURN + HOUSEHOLD AGGREGATION
+══════════════════════════════════════════════════ #}
+<div class="phase-section phase-3 {{ 'phase-locked' if not ph2_done else '' }}">
+  <div class="phase-header">
+    <div class="phase-badge ph3">Phase 3</div>
+    <div>
+      <div class="phase-title">Bank Return &amp; Household Aggregation</div>
+      <div class="phase-desc">Email arrives · Match FAS # · Check if all returned · Sum household total</div>
+    </div>
+    {% if case.status == 'Partial Return' %}
+      <div class="phase-status-pill warn-pill">&#9203; Partial — awaiting more banks</div>
+    {% elif ph3_done %}
+      <div class="phase-status-pill done-pill">&#10003; All returns received</div>
+    {% elif ph2_done %}
+      <div class="phase-status-pill pending-pill">&#9711; Awaiting bank responses</div>
+    {% else %}
+      <div class="phase-status-pill locked-pill">&#128274; Locked</div>
+    {% endif %}
   </div>
-</div>
 
-{# ── Simulate Bank Response ── #}
-{% if case.status in ('Sent to Banks', 'Partial Return') %}
-<div class="card">
-  <div class="card-title">Flow 3: Simulate Bank Response</div>
-  <p style="font-size:0.85rem; color:#64748b; margin-bottom:16px;">
-    Enter the balance data reported by a bank. This simulates a bank returning data and will automatically trigger Flow 4 (Household Aggregator).
-  </p>
-  <form method="POST" action="/cases/{{ case.system_uid }}/bank-return">
-    <div class="form-grid">
-      <div class="form-group">
-        <label class="form-label" for="bank">Bank</label>
-        <select class="form-control" id="bank" name="bank" required>
-          <option value="">— Select Bank —</option>
-          {% for b in banks %}
-          <option value="{{ b }}">{{ b }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="account_type">Account Type</label>
-        <select class="form-control" id="account_type" name="account_type">
-          <option value="Checking">Checking</option>
-          <option value="Savings">Savings</option>
-          <option value="Money Market">Money Market</option>
-          <option value="CD">CD</option>
-          <option value="Other">Other</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="avg_balance">Average Balance ($)</label>
-        <input class="form-control" type="number" step="0.01" min="0" id="avg_balance" name="avg_balance"
-               placeholder="e.g. 2500.00" required>
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="current_balance">Current Balance ($)</label>
-        <input class="form-control" type="number" step="0.01" min="0" id="current_balance" name="current_balance"
-               placeholder="e.g. 2800.00" required>
+  <div class="phase-body">
+    {% if case.status == 'Partial Return' %}
+    <div class="banner-partial" style="margin-bottom:16px;">
+      <div class="banner-icon">&#9203;</div>
+      <div>
+        <strong>Partial Return</strong> — Some banks have responded. The system is waiting silently for remaining responses. No officer notification is sent at this stage.
       </div>
     </div>
-    <button type="submit" class="btn btn-warning">Submit Bank Response &amp; Run Flow 4</button>
-  </form>
-</div>
-{% endif %}
+    {% endif %}
 
-{# ── Returns Table ── #}
-{% if returns %}
-<div class="card">
-  <div class="card-title">Bank Returns ({{ returns|length }} record{{ 's' if returns|length != 1 else '' }})</div>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Bank</th>
-          <th>Return Source</th>
-          <th>Account Type</th>
-          <th>Avg Balance</th>
-          <th>Current Balance</th>
-          <th>Status</th>
-          <th>Received At</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for ret in returns %}
-        <tr>
-          <td><strong>{{ ret.bank }}</strong></td>
-          <td>{{ ret.return_source or '—' }}</td>
-          <td>{{ ret.account_type or '—' }}</td>
-          <td>${{ "%.2f"|format(ret.avg_balance or 0) }}</td>
-          <td><strong>${{ "%.2f"|format(ret.current_balance or 0) }}</strong></td>
-          <td><span class="badge badge-returned">{{ ret.status }}</span></td>
-          <td style="font-size:0.8rem;">{{ ret.created_at[:19].replace('T', ' ') if ret.created_at else '—' }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    {# Returns table #}
+    {% if returns %}
+    <div style="margin-bottom:20px;">
+      <div style="font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#94a3b8; margin-bottom:10px;">
+        Bank Returns Received — {{ returns|length }} record{{ 's' if returns|length != 1 else '' }}
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Bank</th><th>Return Source</th><th>Account Type</th><th>Avg Balance</th><th>Current Balance</th><th>Received At</th></tr>
+          </thead>
+          <tbody>
+            {% for ret in returns %}
+            <tr>
+              <td><strong>{{ ret.bank }}</strong></td>
+              <td>{{ ret.return_source or '—' }}</td>
+              <td>{{ ret.account_type or '—' }}</td>
+              <td>${{ "{:,.2f}".format(ret.avg_balance or 0) }}</td>
+              <td><strong>${{ "{:,.2f}".format(ret.current_balance or 0) }}</strong></td>
+              <td style="font-size:0.78rem; color:#64748b;">{{ ret.created_at[:16].replace('T',' ') if ret.created_at else '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {# Household view #}
+    {% if household|length > 0 %}
+    <div style="margin-bottom:20px;">
+      <div style="font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#94a3b8; margin-bottom:10px;">
+        Household Members — Principal FAS {{ case.principal_fas }}
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>System UID</th><th>Client Name</th><th>Status</th><th>Returns Total</th></tr>
+          </thead>
+          <tbody>
+            {% for hh in household %}
+            <tr {% if hh.system_uid == case.system_uid %}style="background:#f0f9ff;"{% endif %}>
+              <td>
+                <a href="/cases/{{ hh.system_uid }}" style="color:#3b82f6; font-weight:600; text-decoration:none;">{{ hh.system_uid }}</a>
+                {% if hh.system_uid == case.system_uid %}<span style="font-size:0.7rem; color:#94a3b8;"> ← current</span>{% endif %}
+              </td>
+              <td>{{ hh.client_name }}</td>
+              <td>
+                {% if hh.status == 'Pending' %}<span class="badge badge-pending">Pending</span>
+                {% elif hh.status == 'Sent to Banks' %}<span class="badge badge-sent">Sent to Banks</span>
+                {% elif hh.status == 'Partial Return' %}<span class="badge badge-partial">Partial Return</span>
+                {% elif hh.status == 'Cleared' %}<span class="badge badge-cleared">Cleared</span>
+                {% elif hh.status == 'OVER LIMIT' %}<span class="badge badge-overlimit">Over Limit</span>
+                {% else %}<span class="badge badge-pending">{{ hh.status }}</span>{% endif %}
+              </td>
+              <td><strong>${{ "{:,.2f}".format(hh.balance_total) }}</strong></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {# Simulate bank response form #}
+    {% if case.status in ('Sent to Banks', 'Partial Return') %}
+    <div style="padding-top:16px; border-top:1px solid #e2e8f0;">
+      <div style="font-size:0.82rem; font-weight:700; color:#374151; margin-bottom:12px;">
+        &#128179; Simulate Bank Response
+        <span style="font-weight:400; color:#94a3b8; margin-left:8px;">Entering data here simulates a bank emailing back their Excel. Flow 4 runs automatically after submission.</span>
+      </div>
+      <form method="POST" action="/cases/{{ case.system_uid }}/bank-return">
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Bank</label>
+            <select class="form-control" name="bank" required>
+              <option value="">— Select Bank —</option>
+              {% for b in banks %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Account Type</label>
+            <select class="form-control" name="account_type">
+              <option>Checking</option><option>Savings</option><option>Money Market</option><option>CD</option><option>Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Average Balance ($)</label>
+            <input class="form-control" type="number" step="0.01" min="0" name="avg_balance" placeholder="e.g. 2500.00" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Current Balance ($)</label>
+            <input class="form-control" type="number" step="0.01" min="0" name="current_balance" placeholder="e.g. 2800.00" required>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-warning">Submit Bank Return &amp; Run Flow 4 →</button>
+      </form>
+    </div>
+    {% elif not ph2_done %}
+    <div class="phase-waiting">&#128274; This phase unlocks after the case is sent to banks in Phase 2.</div>
+    {% endif %}
   </div>
 </div>
-{% endif %}
 
-{# ── Household Section ── #}
-{% if household|length > 1 %}
-<div class="card">
-  <div class="card-title">Household Members (Principal FAS: {{ case.principal_fas }})</div>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>System UID</th>
-          <th>Client Name</th>
-          <th>Status</th>
-          <th>Returns Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for hh in household %}
-        <tr>
-          <td>
-            <a href="/cases/{{ hh.system_uid }}" style="color:#3b82f6; text-decoration:none; font-weight:600;">
-              {{ hh.system_uid }}
-            </a>
-            {% if hh.system_uid == case.system_uid %}<span style="font-size:0.72rem; color:#94a3b8;"> (current)</span>{% endif %}
-          </td>
-          <td>{{ hh.client_name }}</td>
-          <td>
-            {% if hh.status == 'Pending' %}<span class="badge badge-pending">Pending</span>
-            {% elif hh.status == 'Sent to Banks' %}<span class="badge badge-sent">Sent to Banks</span>
-            {% elif hh.status == 'Partial Return' %}<span class="badge badge-partial">Partial Return</span>
-            {% elif hh.status == 'Returned' %}<span class="badge badge-returned">Returned</span>
-            {% elif hh.status == 'Cleared' %}<span class="badge badge-cleared">Cleared</span>
-            {% elif hh.status == 'OVER LIMIT' %}<span class="badge badge-overlimit">Over Limit</span>
-            {% elif hh.status == 'Incomplete' %}<span class="badge badge-incomplete">Incomplete</span>
-            {% else %}<span class="badge badge-pending">{{ hh.status }}</span>{% endif %}
-          </td>
-          <td>${{ "%.2f"|format(hh.balance_total) }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+{# ══════════════════════════════════════════════════
+   PHASE 4 — DECISION AND ALERT
+══════════════════════════════════════════════════ #}
+<div class="phase-section phase-4 {{ 'phase-locked' if not ph3_done else '' }}">
+  <div class="phase-header">
+    <div class="phase-badge ph4">Phase 4</div>
+    <div>
+      <div class="phase-title">Decision &amp; Alert</div>
+      <div class="phase-desc">Household total vs threshold · Notify officer &amp; manager · Generate Suspension Letter if over limit</div>
+    </div>
+    {% if case.status == 'OVER LIMIT' %}
+      <div class="phase-status-pill overlimit-pill">&#9888; OVER LIMIT</div>
+    {% elif case.status == 'Cleared' %}
+      <div class="phase-status-pill done-pill">&#10003; Cleared</div>
+    {% elif ph3_done %}
+      <div class="phase-status-pill pending-pill">&#9711; Processing</div>
+    {% else %}
+      <div class="phase-status-pill locked-pill">&#128274; Locked</div>
+    {% endif %}
+  </div>
+
+  <div class="phase-body">
+    {% if case.status == 'Cleared' %}
+
+    <div class="banner-cleared" style="margin-bottom:0;">
+      <div class="banner-icon">&#10003;</div>
+      <div>
+        <h3>SCENARIO A — CHECK CLEARED</h3>
+        <p style="margin-top:6px; font-size:0.9rem;">
+          Household Total: <strong>${{ "{:,.2f}".format(case.household_total or 0) }}</strong> &nbsp;/&nbsp;
+          Threshold: <strong>${{ "{:,.0f}".format(case.threshold_limit or 0) }}</strong> &nbsp;·&nbsp;
+          Under by <strong>${{ "{:,.2f}".format((case.threshold_limit or 0) - (case.household_total or 0)) }}</strong>
+        </p>
+        <p style="margin-top:4px; font-size:0.82rem; color:#166534;">Confirmation email sent to {{ case.assigned_officer }}. No action required.</p>
+      </div>
+    </div>
+
+    {% elif case.status == 'OVER LIMIT' %}
+
+    <div class="banner-overlimit" style="margin-bottom:0;">
+      <div class="banner-top">
+        <div class="banner-icon">&#9888;</div>
+        <div>
+          <h3>SCENARIO B — OVER LIMIT</h3>
+          <p>
+            Household Total: <strong>${{ "{:,.2f}".format(case.household_total or 0) }}</strong> &nbsp;/&nbsp;
+            Threshold: <strong>${{ "{:,.0f}".format(case.threshold_limit or 0) }}</strong> &nbsp;·&nbsp;
+            Over by <strong>${{ "{:,.2f}".format((case.household_total or 0) - (case.threshold_limit or 0)) }}</strong>
+          </p>
+          <p style="margin-top:4px; font-size:0.82rem; color:#b91c1c;">High-priority alert sent to {{ case.assigned_officer }} and {{ case.assigned_manager or 'manager' }}.</p>
+        </div>
+      </div>
+
+      <div class="suspension-letter">DEPARTMENT OF FAMILY ASSISTANCE
+BANK CHECK SUSPENSION NOTICE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DATE:            {{ case.created_at[:10] if case.created_at else 'N/A' }}
+CASE / SYSTEM UID: {{ case.system_uid }}
+PRINCIPAL FAS:   {{ case.principal_fas }}
+CATEGORY:        {{ case.hh_category }}
+
+HOUSEHOLD MEMBER(S) &amp; BALANCES:
+{% for row in alias_rows %}  · {{ row.client_name }}{% for ret in returns if ret.client_name == row.client_name %} — Current Balance: ${{ "{:,.2f}".format(ret.current_balance or 0) }}{% endfor %}
+{% endfor %}
+HOUSEHOLD TOTAL:  ${{ "{:,.2f}".format(case.household_total or 0) }}
+THRESHOLD LIMIT:  ${{ "{:,.0f}".format(case.threshold_limit or 0) }}
+OVERAGE AMOUNT:   ${{ "{:,.2f}".format((case.household_total or 0) - (case.threshold_limit or 0)) }}
+
+DETERMINATION:
+It has been established through the DFA Bank Check Processing Pipeline
+that the above-referenced household holds financial assets exceeding
+the program threshold for the {{ case.hh_category }} category.
+
+OUTCOME:
+Benefits for this household are hereby SUSPENDED pending formal
+review by the assigned officer ({{ case.assigned_officer }}) and
+manager ({{ case.assigned_manager or 'N/A' }}).
+
+This notice was generated automatically by the DFA Check Pipeline.
+Retain this document for case records.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DFA BANK CHECK PROCESSING SYSTEM — CONFIDENTIAL</div>
+    </div>
+
+    {% elif not ph3_done %}
+    <div class="phase-waiting">&#128274; Phase 4 runs automatically once all bank returns are received in Phase 3.</div>
+    {% endif %}
   </div>
 </div>
-{% endif %}
+
+<style>
+/* ─── Phase Track ─── */
+.phase-track {
+  display: flex;
+  align-items: center;
+  margin-bottom: 32px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px 32px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.phase-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 80px;
+}
+.phase-circle {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #94a3b8;
+  font-size: 1rem;
+  font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.phase-node.done .phase-circle   { background: #22c55e; color: #fff; }
+.phase-node.active .phase-circle { background: #3b82f6; color: #fff; }
+.phase-node.partial .phase-circle{ background: #f59e0b; color: #fff; }
+.phase-node.overlimit .phase-circle { background: #ef4444; color: #fff; }
+.phase-name { font-size: 0.78rem; font-weight: 700; color: #64748b; }
+.phase-node.done .phase-name { color: #16a34a; }
+.phase-node.active .phase-name { color: #2563eb; }
+.phase-node.overlimit .phase-name { color: #dc2626; }
+.phase-sub  { font-size: 0.68rem; color: #94a3b8; text-align:center; }
+.phase-line {
+  flex: 1;
+  height: 3px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  margin: 0 4px;
+  margin-bottom: 28px;
+}
+.phase-line.done { background: #22c55e; }
+
+/* ─── Phase Sections ─── */
+.phase-section {
+  border-radius: 12px;
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.phase-locked {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.phase-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  flex-wrap: wrap;
+}
+.phase-title  { font-size: 0.97rem; font-weight: 700; color: #1e293b; }
+.phase-desc   { font-size: 0.78rem; color: #64748b; margin-top: 2px; }
+.phase-header > div:nth-child(2) { flex: 1; }
+
+/* Phase colour bands */
+.phase-1 { background: #fff; border-top: 4px solid #6366f1; }
+.phase-2 { background: #fff; border-top: 4px solid #3b82f6; }
+.phase-3 { background: #fff; border-top: 4px solid #f59e0b; }
+.phase-4 { background: #fff; border-top: 4px solid #22c55e; }
+.phase-4.phase-section:has(.banner-overlimit) { border-top-color: #ef4444; }
+
+.phase-badge {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.ph1 { background: #ede9fe; color: #4c1d95; }
+.ph2 { background: #dbeafe; color: #1e40af; }
+.ph3 { background: #fef3c7; color: #78350f; }
+.ph4 { background: #dcfce7; color: #14532d; }
+
+.phase-status-pill {
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  margin-left: auto;
+}
+.done-pill     { background: #dcfce7; color: #166534; }
+.warn-pill     { background: #fef3c7; color: #92400e; }
+.pending-pill  { background: #dbeafe; color: #1e40af; }
+.locked-pill   { background: #f1f5f9; color: #94a3b8; }
+.overlimit-pill{ background: #fee2e2; color: #991b1b; }
+
+.phase-body { padding: 20px 24px; }
+
+.phase-waiting {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e0;
+  border-radius: 8px;
+  padding: 16px 20px;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.phase-info-row {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+.info-item .info-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94a3b8; margin-bottom: 4px; }
+.info-item .info-value { font-size: 0.9rem; color: #1e293b; font-weight: 500; }
+.mono { font-family: "Courier New", monospace; }
+</style>
 
 {% endblock %}
