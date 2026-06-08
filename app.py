@@ -22,7 +22,7 @@ app = Flask(__name__)
 
 BANKS = [
     "RBC", "CNB", "Butterfield", "CIBC", "FirstCaribbean",
-    "Cayman National", "Fidelity", "ScotiaBank", "Other"
+    "Cayman National", "Fidelity", "ScotiaBank", "Credit Union"
 ]
 
 ALL_BANKS = set(BANKS)  # all 9 must respond before final determination
@@ -169,22 +169,44 @@ def dashboard():
         "SELECT COUNT(DISTINCT system_uid) FROM cases WHERE status='OVER LIMIT'"
     ).fetchone()[0]
 
-    # Get one representative row per system_uid (first alias row) with all aliases listed
-    uid_rows = conn.execute(
-        """
-        SELECT c.*, GROUP_CONCAT(c2.client_name, ', ') AS all_aliases
-        FROM cases c
-        JOIN cases c2 ON c2.system_uid = c.system_uid
-        WHERE c.id = (SELECT MIN(id) FROM cases WHERE system_uid = c.system_uid)
-        GROUP BY c.system_uid
-        ORDER BY c.id DESC
-        """
+    # Group by principal_fas — one household group per principal_fas
+    # Each household contains all system_uids (one per alias/name)
+    fas_rows = conn.execute(
+        "SELECT principal_fas FROM cases GROUP BY principal_fas ORDER BY MIN(id) DESC"
     ).fetchall()
+
+    households = []
+    for fr in fas_rows:
+        pfas = fr["principal_fas"]
+        # All cases under this household, one per system_uid
+        members = conn.execute(
+            """SELECT c.system_uid, c.client_name, c.individual_fas, c.status,
+                      c.roi_status, c.hh_category, c.threshold_limit,
+                      c.assigned_officer, c.created_at, c.household_total
+               FROM cases c
+               WHERE c.principal_fas=?
+               ORDER BY c.id""",
+            (pfas,)
+        ).fetchall()
+        if not members:
+            continue
+        # Household-level summary: worst status wins for display
+        status_order = ["OVER LIMIT", "Incomplete", "Partial Return", "Sent to Banks", "Cleared", "Pending"]
+        statuses = [m["status"] for m in members]
+        display_status = next((s for s in status_order if s in statuses), statuses[0])
+        households.append({
+            "principal_fas": pfas,
+            "members": members,
+            "display_status": display_status,
+            "hh_category": members[0]["hh_category"],
+            "threshold_limit": members[0]["threshold_limit"],
+            "assigned_officer": members[0]["assigned_officer"],
+        })
 
     conn.close()
     return render_template(
         "dashboard.html",
-        uid_rows=uid_rows,
+        households=households,
         total=total,
         pending_roi=pending_roi,
         sent=sent,
@@ -216,15 +238,12 @@ def new_case():
 
     now = datetime.now(timezone.utc).isoformat()
 
-    # 1. Generate system_uid
-    uid = _next_system_uid(conn)
-
-    # 2. Split aliases
+    # 1. Split aliases — each alias is a SEPARATE bank check (own system_uid, own ROI)
     aliases = [a.strip() for a in all_names_raw.split(",") if a.strip()]
     if not aliases:
         aliases = [all_names_raw or "Unknown"]
 
-    # 3. Validate staff
+    # 2. Validate staff
     officer_exists = conn.execute(
         "SELECT id FROM staff WHERE email=? AND role='Officer'", (assigned_officer,)
     ).fetchone()
@@ -237,23 +256,26 @@ def new_case():
     else:
         initial_status = "Pending"
 
-    # 4. Get existing members of this principal_fas household
+    # 3. Get existing members of this principal_fas household
     existing_members = conn.execute(
         "SELECT dob, disability_flag FROM cases WHERE principal_fas=?",
         (principal_fas,)
     ).fetchall()
 
-    # 5. Build full member list for category calculation (existing + new)
+    # 4. Build full member list for category calculation (existing + new aliases)
     all_members = [{"dob": m["dob"], "disability_flag": m["disability_flag"]} for m in existing_members]
-    # Add new member(s) — one entry per alias (same dob/disability)
     for _ in aliases:
         all_members.append({"dob": dob, "disability_flag": disability_flag})
 
-    # 6. Calculate category/threshold
+    # 5. Calculate category/threshold
     category, threshold = _calc_hh_category(all_members)
 
-    # 7. Insert one row per alias
-    for i, alias in enumerate(aliases):
+    # 6. Insert ONE ROW PER ALIAS, each with its own system_uid
+    #    All aliases share principal_fas, individual_fas, dob — they are the same
+    #    person under different names (e.g. married names), each needing a separate check.
+    created_uids = []
+    for alias in aliases:
+        uid = _next_system_uid(conn)
         conn.execute(
             """INSERT INTO cases
                (system_uid, principal_fas, individual_fas, client_name, all_names,
@@ -264,7 +286,7 @@ def new_case():
             (
                 uid, principal_fas, individual_fas,
                 alias,
-                all_names_raw if i == 0 else None,
+                all_names_raw,
                 dob, physical_address, mailing_address, disability_flag,
                 assigned_officer, assigned_manager,
                 category, threshold,
@@ -272,12 +294,15 @@ def new_case():
                 now,
             ),
         )
+        created_uids.append(uid)
 
-    # 8. Update existing cases rows for this principal_fas with new category/threshold
-    conn.execute(
-        "UPDATE cases SET hh_category=?, threshold_limit=? WHERE principal_fas=? AND system_uid!=?",
-        (category, threshold, principal_fas, uid)
-    )
+    # 7. Update existing cases rows for this principal_fas with recalculated category/threshold
+    if created_uids:
+        placeholders = ",".join("?" * len(created_uids))
+        conn.execute(
+            f"UPDATE cases SET hh_category=?, threshold_limit=? WHERE principal_fas=? AND system_uid NOT IN ({placeholders})",
+            [category, threshold, principal_fas] + created_uids
+        )
 
     conn.commit()
     conn.close()

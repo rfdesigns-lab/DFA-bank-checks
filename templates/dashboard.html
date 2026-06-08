@@ -9,7 +9,7 @@
 <div class="stats-grid">
   <div class="stat-card blue">
     <div class="stat-value">{{ total }}</div>
-    <div class="stat-label">Total Cases</div>
+    <div class="stat-label">Total Checks</div>
   </div>
   <div class="stat-card gray">
     <div class="stat-value">{{ pending_roi }}</div>
@@ -35,78 +35,211 @@
 
 <div class="card">
   <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-    <div class="card-title" style="margin-bottom:0;">All Cases</div>
-    <div style="display:flex;gap:10px;">
+    <div class="card-title" style="margin-bottom:0;">Households</div>
+    <div style="display:flex; gap:10px;">
       <button class="btn btn-primary btn-sm" onclick="runBatch(event)">&#9654; Run Friday Batch</button>
       <a href="/cases/new" class="btn btn-success btn-sm">&#43; New Case</a>
     </div>
   </div>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>System UID</th>
-          <th>Principal FAS</th>
-          <th>Client Name(s)</th>
-          <th>Officer</th>
-          <th>Status</th>
-          <th>ROI Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in uid_rows %}
-        <tr>
-          <td><strong>{{ row.system_uid }}</strong></td>
-          <td>{{ row.principal_fas or '—' }}</td>
-          <td style="max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ row.all_aliases }}">
-            {{ row.all_aliases or row.client_name or '—' }}
-          </td>
-          <td style="font-size:0.82rem;">{{ row.assigned_officer or '—' }}</td>
-          <td>
-            {% if row.status == 'Pending' %}
-              <span class="badge badge-pending">Pending</span>
-            {% elif row.status == 'Sent to Banks' %}
-              <span class="badge badge-sent">Sent to Banks</span>
-            {% elif row.status == 'Partial Return' %}
-              <span class="badge badge-partial">Partial Return</span>
-            {% elif row.status == 'Returned' %}
-              <span class="badge badge-returned">Returned</span>
-            {% elif row.status == 'Cleared' %}
-              <span class="badge badge-cleared">Cleared</span>
-            {% elif row.status == 'OVER LIMIT' %}
-              <span class="badge badge-overlimit">Over Limit</span>
-            {% elif row.status == 'Incomplete' %}
-              <span class="badge badge-incomplete">Incomplete</span>
-            {% else %}
-              <span class="badge badge-pending">{{ row.status }}</span>
-            {% endif %}
-          </td>
-          <td>
-            {% if row.roi_status == 'Uploaded' %}
-              <span class="badge badge-uploaded">Uploaded</span>
-            {% else %}
-              <span class="badge badge-not-uploaded">Not Uploaded</span>
-            {% endif %}
-          </td>
-          <td style="white-space:nowrap;">
-            <a href="/cases/{{ row.system_uid }}" class="btn btn-secondary btn-sm">View</a>
-            {% if row.roi_status == 'Not Uploaded' %}
-            <form method="POST" action="/cases/{{ row.system_uid }}/upload-roi" style="display:inline; margin-left:4px;">
-              <button type="submit" class="btn btn-warning btn-sm">Upload ROI</button>
-            </form>
-            {% endif %}
-          </td>
-        </tr>
-        {% else %}
-        <tr>
-          <td colspan="7" style="text-align:center; color:#94a3b8; padding:32px;">
-            No cases yet. <a href="/cases/new" style="color:#3b82f6;">Create your first case &rarr;</a>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+
+  {% if not households %}
+  <div style="text-align:center; color:#94a3b8; padding:40px;">
+    No cases yet. <a href="/cases/new" style="color:#3b82f6;">Create your first case &rarr;</a>
   </div>
+  {% else %}
+
+  <div class="hh-list">
+    {% for hh in households %}
+    {% set hh_id = loop.index %}
+    <div class="hh-row">
+
+      {# ── Household header row ── #}
+      <div class="hh-header" onclick="toggleHH('hh-{{ hh_id }}', this)">
+        <div class="hh-toggle">&#9654;</div>
+
+        <div class="hh-col hh-fas">
+          <span class="label-tiny">Principal FAS</span>
+          <strong>{{ hh.principal_fas }}</strong>
+        </div>
+
+        <div class="hh-col hh-members">
+          <span class="label-tiny">Members / Aliases</span>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:3px;">
+            {% for m in hh.members %}
+            <span class="alias-chip">{{ m.client_name }}</span>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="hh-col hh-cat">
+          <span class="label-tiny">Category</span>
+          <span>{{ hh.hh_category or '—' }}</span>
+        </div>
+
+        <div class="hh-col hh-threshold">
+          <span class="label-tiny">Threshold</span>
+          <span>${{ "{:,.0f}".format(hh.threshold_limit or 0) }}</span>
+        </div>
+
+        <div class="hh-col hh-officer">
+          <span class="label-tiny">Officer</span>
+          <span style="font-size:0.8rem;">{{ hh.assigned_officer or '—' }}</span>
+        </div>
+
+        <div class="hh-col hh-status">
+          {% set s = hh.display_status %}
+          {% if s == 'Pending' %}<span class="badge badge-pending">Pending</span>
+          {% elif s == 'Sent to Banks' %}<span class="badge badge-sent">Sent to Banks</span>
+          {% elif s == 'Partial Return' %}<span class="badge badge-partial">Partial Return</span>
+          {% elif s == 'Cleared' %}<span class="badge badge-cleared">Cleared</span>
+          {% elif s == 'OVER LIMIT' %}<span class="badge badge-overlimit">Over Limit</span>
+          {% elif s == 'Incomplete' %}<span class="badge badge-incomplete">Incomplete</span>
+          {% else %}<span class="badge badge-pending">{{ s }}</span>{% endif %}
+        </div>
+      </div>
+
+      {# ── Expanded member detail rows ── #}
+      <div class="hh-detail" id="hh-{{ hh_id }}" style="display:none;">
+        <table class="member-table">
+          <thead>
+            <tr>
+              <th>System UID</th>
+              <th>Name / Alias</th>
+              <th>Individual FAS</th>
+              <th>Status</th>
+              <th>ROI</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in hh.members %}
+            <tr>
+              <td><span class="mono" style="font-size:0.82rem;">{{ m.system_uid }}</span></td>
+              <td><strong>{{ m.client_name }}</strong></td>
+              <td>{{ m.individual_fas or '—' }}</td>
+              <td>
+                {% if m.status == 'Pending' %}<span class="badge badge-pending">Pending</span>
+                {% elif m.status == 'Sent to Banks' %}<span class="badge badge-sent">Sent to Banks</span>
+                {% elif m.status == 'Partial Return' %}<span class="badge badge-partial">Partial Return</span>
+                {% elif m.status == 'Cleared' %}<span class="badge badge-cleared">Cleared</span>
+                {% elif m.status == 'OVER LIMIT' %}<span class="badge badge-overlimit">Over Limit</span>
+                {% elif m.status == 'Incomplete' %}<span class="badge badge-incomplete">Incomplete</span>
+                {% else %}<span class="badge badge-pending">{{ m.status }}</span>{% endif %}
+              </td>
+              <td>
+                {% if m.roi_status == 'Uploaded' %}
+                  <span class="badge badge-uploaded">&#10003; Uploaded</span>
+                {% else %}
+                  <span class="badge badge-not-uploaded">&#9888; Not Uploaded</span>
+                {% endif %}
+              </td>
+              <td style="white-space:nowrap;">
+                <a href="/cases/{{ m.system_uid }}" class="btn btn-secondary btn-sm">View</a>
+                {% if m.roi_status == 'Not Uploaded' %}
+                <form method="POST" action="/cases/{{ m.system_uid }}/upload-roi" style="display:inline; margin-left:4px;">
+                  <button type="submit" class="btn btn-warning btn-sm">&#8679; ROI</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
 </div>
+
+<style>
+.hh-list { display: flex; flex-direction: column; gap: 2px; }
+
+.hh-row {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.hh-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  background: #fff;
+  cursor: pointer;
+  transition: background 0.15s;
+  flex-wrap: wrap;
+}
+.hh-header:hover { background: #f8fafc; }
+.hh-header.open { background: #f0f9ff; border-bottom: 1px solid #e0f2fe; }
+
+.hh-toggle {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+.hh-header.open .hh-toggle { transform: rotate(90deg); color: #3b82f6; }
+
+.hh-col { display: flex; flex-direction: column; }
+.label-tiny { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #94a3b8; margin-bottom: 2px; }
+
+.hh-fas       { min-width: 110px; }
+.hh-members   { flex: 1; min-width: 200px; }
+.hh-cat       { min-width: 110px; }
+.hh-threshold { min-width: 80px; }
+.hh-officer   { min-width: 150px; }
+.hh-status    { min-width: 110px; }
+
+.alias-chip {
+  background: #ede9fe;
+  color: #4c1d95;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.hh-detail {
+  padding: 0 0 0 0;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+}
+
+.member-table { width: 100%; border-collapse: collapse; font-size: 0.855rem; }
+.member-table th {
+  background: #f1f5f9;
+  padding: 8px 16px;
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+}
+.member-table td {
+  padding: 10px 16px;
+  border-bottom: 1px solid #e9eef3;
+  vertical-align: middle;
+}
+.member-table tr:last-child td { border-bottom: none; }
+.member-table tr:hover td { background: #f0f9ff; }
+
+.mono { font-family: "Courier New", monospace; }
+</style>
+
+<script>
+function toggleHH(id, header) {
+  var el = document.getElementById(id);
+  var open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  if (open) header.classList.remove('open');
+  else header.classList.add('open');
+}
+</script>
+
 {% endblock %}
