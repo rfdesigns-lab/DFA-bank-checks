@@ -22,8 +22,10 @@ app = Flask(__name__)
 
 BANKS = [
     "RBC", "CNB", "Butterfield", "CIBC", "FirstCaribbean",
-    "Cayman National", "Fidelity", "ScotiaBank"
+    "Cayman National", "Fidelity", "ScotiaBank", "Other"
 ]
+
+ALL_BANKS = set(BANKS)  # all 9 must respond before final determination
 
 
 # ---------------------------------------------------------------------------
@@ -89,24 +91,16 @@ def _flow4(conn, principal_fas: str):
         (category, threshold, principal_fas)
     )
 
-    # 3. Get all distinct system_uids for this principal_fas
-    uid_rows = conn.execute(
-        "SELECT DISTINCT system_uid FROM cases WHERE principal_fas=?",
+    # 3. Find which of the 9 banks have returned for this principal_fas
+    returned_banks_rows = conn.execute(
+        "SELECT DISTINCT bank FROM returns WHERE principal_fas=?",
         (principal_fas,)
     ).fetchall()
-    all_uids = [r["system_uid"] for r in uid_rows]
+    returned_banks = {r["bank"] for r in returned_banks_rows}
+    missing_banks = ALL_BANKS - returned_banks
 
-    # 4. Count uids that are still "Sent to Banks" (pending return)
-    pending_return_uids = set()
-    for uid in all_uids:
-        row = conn.execute(
-            "SELECT status FROM cases WHERE system_uid=? LIMIT 1", (uid,)
-        ).fetchone()
-        if row and row["status"] == "Sent to Banks":
-            pending_return_uids.add(uid)
-
-    if pending_return_uids:
-        # Still waiting for some banks — Partial Return
+    if missing_banks:
+        # Still waiting for some banks — Partial Return (silent, no officer email)
         conn.execute(
             "UPDATE cases SET status='Partial Return' WHERE principal_fas=?",
             (principal_fas,)
@@ -378,6 +372,16 @@ def case_detail(system_uid):
             "balance_total": ret_sum["total"] or 0.0,
         })
 
+    # Bank tracker: which of the 9 banks have returned vs still pending
+    returned_banks_rows = conn.execute(
+        "SELECT DISTINCT bank FROM returns WHERE principal_fas=?", (principal_fas,)
+    ).fetchall()
+    returned_banks = {r["bank"] for r in returned_banks_rows}
+    bank_tracker = [
+        {"bank": b, "returned": b in returned_banks}
+        for b in BANKS
+    ]
+
     conn.close()
     return render_template(
         "case_detail.html",
@@ -386,6 +390,9 @@ def case_detail(system_uid):
         returns=returns,
         household=household,
         banks=BANKS,
+        bank_tracker=bank_tracker,
+        returned_banks=returned_banks,
+        missing_banks=ALL_BANKS - returned_banks,
     )
 
 

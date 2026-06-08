@@ -234,6 +234,27 @@
     </div>
     {% endif %}
 
+    {# ── Bank Response Tracker ── #}
+    <div style="margin-bottom:20px;">
+      <div style="font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#94a3b8; margin-bottom:10px;">
+        Bank Response Tracker — {{ returned_banks|length }} of 9 responded
+      </div>
+      <div class="bank-tracker">
+        {% for bt in bank_tracker %}
+        <div class="bank-tile {{ 'bank-done' if bt.returned else 'bank-pending' }}">
+          <div class="bank-icon">{{ '✓' if bt.returned else '…' }}</div>
+          <div class="bank-name">{{ bt.bank }}</div>
+          <div class="bank-tag">{{ 'Returned' if bt.returned else 'Awaiting' }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% if missing_banks and case.status in ('Sent to Banks', 'Partial Return') %}
+      <div style="margin-top:10px; font-size:0.8rem; color:#92400e; background:#fef3c7; border-radius:6px; padding:8px 12px;">
+        &#9203; Still waiting on: <strong>{{ missing_banks | join(', ') }}</strong>. Officer will be notified only once all 9 banks have responded.
+      </div>
+      {% endif %}
+    </div>
+
     {# Returns table #}
     {% if returns %}
     <div style="margin-bottom:20px;">
@@ -553,6 +574,28 @@ DFA BANK CHECK PROCESSING SYSTEM — CONFIDENTIAL</div>
 .info-item .info-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94a3b8; margin-bottom: 4px; }
 .info-item .info-value { font-size: 0.9rem; color: #1e293b; font-weight: 500; }
 .mono { font-family: "Courier New", monospace; }
+
+/* ─── Bank Tracker ─── */
+.bank-tracker {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 8px;
+}
+@media (max-width: 900px) { .bank-tracker { grid-template-columns: repeat(3, 1fr); } }
+.bank-tile {
+  border-radius: 10px;
+  padding: 12px 8px;
+  text-align: center;
+  border: 2px solid transparent;
+  transition: transform 0.15s;
+}
+.bank-done    { background: #dcfce7; border-color: #22c55e; }
+.bank-pending { background: #f8fafc; border-color: #e2e8f0; }
+.bank-icon  { font-size: 1.2rem; margin-bottom: 4px; color: #16a34a; }
+.bank-pending .bank-icon { color: #cbd5e0; }
+.bank-name  { font-size: 0.72rem; font-weight: 700; color: #1e293b; line-height: 1.2; }
+.bank-tag   { font-size: 0.65rem; margin-top: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; color: #16a34a; }
+.bank-pending .bank-tag { color: #94a3b8; }
 </style>
 
 {% endblock %}
