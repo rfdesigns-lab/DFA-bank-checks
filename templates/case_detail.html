@@ -456,11 +456,21 @@ DFA BANK CHECK PROCESSING SYSTEM — CONFIDENTIAL</div>
 .phase-track {
   display: flex;
   align-items: center;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   background: #fff;
   border-radius: 12px;
-  padding: 20px 32px;
+  padding: 20px 24px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  gap: 0;
+}
+@media (max-width: 600px) {
+  .phase-track { padding: 14px 12px; }
+  .phase-circle { width: 34px; height: 34px; font-size: 0.9rem; }
+  .phase-name { font-size: 0.68rem; }
+  .phase-sub  { font-size: 0.6rem; }
+  .phase-node { min-width: 60px; }
 }
 .phase-node {
   display: flex;
@@ -549,6 +559,13 @@ DFA BANK CHECK PROCESSING SYSTEM — CONFIDENTIAL</div>
   white-space: nowrap;
   margin-left: auto;
 }
+@media (max-width: 600px) {
+  .phase-header { gap: 10px; padding: 12px 14px; }
+  .phase-body   { padding: 14px; }
+  .phase-title  { font-size: 0.88rem; }
+  .phase-status-pill { margin-left: 0; }
+  .phase-info-row { flex-direction: column; gap: 12px; }
+}
 .done-pill     { background: #dcfce7; color: #166534; }
 .warn-pill     { background: #fef3c7; color: #92400e; }
 .pending-pill  { background: #dbeafe; color: #1e40af; }
@@ -581,7 +598,8 @@ DFA BANK CHECK PROCESSING SYSTEM — CONFIDENTIAL</div>
   grid-template-columns: repeat(9, 1fr);
   gap: 8px;
 }
-@media (max-width: 900px) { .bank-tracker { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 900px)  { .bank-tracker { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 500px)  { .bank-tracker { grid-template-columns: repeat(3, 1fr); } }
 .bank-tile {
   border-radius: 10px;
   padding: 12px 8px;

@@ -59,12 +59,11 @@
         <input class="form-control" type="text" id="mailing_address" name="mailing_address"
                placeholder="e.g. P.O. Box 1234">
       </div>
-      <div class="form-group" style="display:flex; align-items:center; gap:10px; padding-top:28px;">
-        <input type="checkbox" id="disability_flag" name="disability_flag" value="1"
-               style="width:18px; height:18px; cursor:pointer;">
-        <label for="disability_flag" class="form-label" style="margin-bottom:0; cursor:pointer;">
-          Disability / Special Category
-        </label>
+      <div class="form-group" style="padding-top:4px;">
+        <div class="check-row">
+          <input type="checkbox" id="disability_flag" name="disability_flag" value="1">
+          <label for="disability_flag">Disability / Special Category</label>
+        </div>
       </div>
     </div>
 
@@ -89,9 +88,9 @@
       </div>
     </div>
 
-    <div style="display:flex; gap:10px; margin-top:8px;">
-      <button type="submit" class="btn btn-primary">&#43; Create Case &amp; Run Flow 1</button>
-      <a href="/dashboard" class="btn btn-secondary">Cancel</a>
+    <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
+      <button type="submit" class="btn btn-primary" style="flex:1; min-width:200px;">&#43; Create Case &amp; Run Flow 1</button>
+      <a href="/dashboard" class="btn btn-secondary" style="flex:1; min-width:100px; text-align:center;">Cancel</a>
     </div>
   </form>
 </div>

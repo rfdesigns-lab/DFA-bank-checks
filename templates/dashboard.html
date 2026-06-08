@@ -187,12 +187,21 @@
 .hh-col { display: flex; flex-direction: column; }
 .label-tiny { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #94a3b8; margin-bottom: 2px; }
 
-.hh-fas       { min-width: 110px; }
-.hh-members   { flex: 1; min-width: 200px; }
-.hh-cat       { min-width: 110px; }
-.hh-threshold { min-width: 80px; }
-.hh-officer   { min-width: 150px; }
-.hh-status    { min-width: 110px; }
+.hh-fas       { min-width: 100px; }
+.hh-members   { flex: 1; min-width: 160px; }
+.hh-cat       { min-width: 100px; }
+.hh-threshold { min-width: 75px; }
+.hh-officer   { min-width: 140px; }
+.hh-status    { min-width: 100px; }
+
+@media (max-width: 768px) {
+  .hh-header { gap: 10px; padding: 12px 14px; }
+  .hh-cat, .hh-threshold, .hh-officer { display: none; }
+  .hh-fas     { min-width: 80px; }
+  .hh-members { min-width: 120px; }
+  .hh-status  { min-width: 80px; }
+  .member-table th, .member-table td { padding: 8px 10px; }
+}
 
 .alias-chip {
   background: #ede9fe;
