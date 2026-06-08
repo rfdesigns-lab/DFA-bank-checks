@@ -272,8 +272,8 @@
               <td><strong>{{ ret.bank }}</strong></td>
               <td>{{ ret.return_source or '—' }}</td>
               <td>{{ ret.account_type or '—' }}</td>
-              <td>${{ "{:,.2f}".format(ret.avg_balance or 0) }}</td>
-              <td><strong>${{ "{:,.2f}".format(ret.current_balance or 0) }}</strong></td>
+              <td>{% if ret.avg_balance is not none %}${{ "{:,.2f}".format(ret.avg_balance) }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+              <td><strong>{% if ret.current_balance is not none %}${{ "{:,.2f}".format(ret.current_balance) }}{% else %}<span style="color:#94a3b8; font-weight:400;">No account</span>{% endif %}</strong></td>
               <td style="font-size:0.78rem; color:#64748b;">{{ ret.created_at[:16].replace('T',' ') if ret.created_at else '—' }}</td>
             </tr>
             {% endfor %}
@@ -310,7 +310,7 @@
                 {% elif hh.status == 'OVER LIMIT' %}<span class="badge badge-overlimit">Over Limit</span>
                 {% else %}<span class="badge badge-pending">{{ hh.status }}</span>{% endif %}
               </td>
-              <td><strong>${{ "{:,.2f}".format(hh.balance_total) }}</strong></td>
+              <td><strong>{% if hh.balance_total > 0 %}${{ "{:,.2f}".format(hh.balance_total) }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</strong></td>
             </tr>
             {% endfor %}
           </tbody>
@@ -343,11 +343,13 @@
           </div>
           <div class="form-group">
             <label class="form-label">Average Balance ($)</label>
-            <input class="form-control" type="number" step="0.01" min="0" name="avg_balance" placeholder="e.g. 2500.00" required>
+            <input class="form-control" type="number" step="0.01" min="0" name="avg_balance" placeholder="Leave blank if no account">
+            <div class="form-hint">Leave blank if bank found no account</div>
           </div>
           <div class="form-group">
             <label class="form-label">Current Balance ($)</label>
-            <input class="form-control" type="number" step="0.01" min="0" name="current_balance" placeholder="e.g. 2800.00" required>
+            <input class="form-control" type="number" step="0.01" min="0" name="current_balance" placeholder="Leave blank if no account">
+            <div class="form-hint">Leave blank if bank found no account (counts as $0 in household total)</div>
           </div>
         </div>
         <button type="submit" class="btn btn-warning">Submit Bank Return &amp; Run Flow 4 →</button>

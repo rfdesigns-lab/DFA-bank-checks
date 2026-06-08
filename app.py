@@ -67,53 +67,79 @@ def _next_system_uid(conn) -> str:
     return f"DFA-{year}-{seq:05d}"
 
 
-def _flow4(conn, principal_fas: str):
+def _member_returned_banks(conn, system_uid: str) -> set:
+    """Return the set of banks that have responded for a specific system_uid."""
+    rows = conn.execute(
+        "SELECT DISTINCT bank FROM returns WHERE system_uid=?", (system_uid,)
+    ).fetchall()
+    return {r["bank"] for r in rows}
+
+
+def _flow4(conn, principal_fas: str, triggered_uid: str):
     """
-    Flow 4 Household Aggregator.
-    Recalculate category/threshold, then determine status for all cases
-    sharing this principal_fas.
+    Flow 4 Household Aggregator — per-member status, household-level final decision.
+
+    Status logic per system_uid:
+      - 0 banks returned          → stays 'Sent to Banks'
+      - 1–8 banks returned        → 'Partial Return'  (this member only)
+      - all 9 banks returned      → 'Returned'        (this member complete)
+
+    Household decision (runs only when every member is 'Returned'):
+      - Sum all current_balance from returns (NULL treated as 0)
+      - Compare vs threshold → 'Cleared' or 'OVER LIMIT' on all household rows
     """
-    # 1. Get all cases rows for this principal_fas
+    # 1. Get all distinct system_uids in this household
     all_cases = conn.execute(
-        "SELECT * FROM cases WHERE principal_fas=?", (principal_fas,)
+        "SELECT DISTINCT system_uid, dob, disability_flag FROM cases WHERE principal_fas=?",
+        (principal_fas,)
     ).fetchall()
 
     if not all_cases:
         return
 
-    # 2. Recalculate category/threshold
+    # 2. Recalculate category/threshold across whole household
     members = [{"dob": c["dob"], "disability_flag": c["disability_flag"]} for c in all_cases]
     category, threshold = _calc_hh_category(members)
-
-    # Update category/threshold on all rows for this principal_fas
     conn.execute(
         "UPDATE cases SET hh_category=?, threshold_limit=? WHERE principal_fas=?",
         (category, threshold, principal_fas)
     )
 
-    # 3. Find which of the 9 banks have returned for this principal_fas
-    returned_banks_rows = conn.execute(
-        "SELECT DISTINCT bank FROM returns WHERE principal_fas=?",
-        (principal_fas,)
-    ).fetchall()
-    returned_banks = {r["bank"] for r in returned_banks_rows}
-    missing_banks = ALL_BANKS - returned_banks
+    # 3. Update per-member status based on how many banks have responded for THAT uid
+    all_complete = True
+    for row in all_cases:
+        uid = row["system_uid"]
+        returned = _member_returned_banks(conn, uid)
+        n = len(returned)
+        if n == 0:
+            # No banks yet — leave as Sent to Banks
+            new_status = "Sent to Banks"
+            all_complete = False
+        elif n < len(ALL_BANKS):
+            # Some banks responded — Partial Return for this member only
+            new_status = "Partial Return"
+            all_complete = False
+        else:
+            # All 9 banks responded for this member
+            new_status = "Returned"
 
-    if missing_banks:
-        # Still waiting for some banks — Partial Return (silent, no officer email)
-        conn.execute(
-            "UPDATE cases SET status='Partial Return' WHERE principal_fas=?",
-            (principal_fas,)
-        )
-    else:
-        # All returned — compute household total
+        # Only update if not already in a final state
+        current = conn.execute(
+            "SELECT status FROM cases WHERE system_uid=? LIMIT 1", (uid,)
+        ).fetchone()
+        if current and current["status"] not in ("Cleared", "OVER LIMIT"):
+            conn.execute(
+                "UPDATE cases SET status=? WHERE system_uid=?", (new_status, uid)
+            )
+
+    # 4. If every member is Returned → run household threshold check
+    if all_complete:
         row = conn.execute(
-            "SELECT SUM(current_balance) AS total FROM returns WHERE principal_fas=?",
+            "SELECT SUM(COALESCE(current_balance, 0)) AS total FROM returns WHERE principal_fas=?",
             (principal_fas,)
         ).fetchone()
         household_total = row["total"] or 0.0
 
-        # Write household_total to all cases rows
         conn.execute(
             "UPDATE cases SET household_total=? WHERE principal_fas=?",
             (household_total, principal_fas)
@@ -397,11 +423,8 @@ def case_detail(system_uid):
             "balance_total": ret_sum["total"] or 0.0,
         })
 
-    # Bank tracker: which of the 9 banks have returned vs still pending
-    returned_banks_rows = conn.execute(
-        "SELECT DISTINCT bank FROM returns WHERE principal_fas=?", (principal_fas,)
-    ).fetchall()
-    returned_banks = {r["bank"] for r in returned_banks_rows}
+    # Bank tracker: per THIS system_uid — which banks have responded
+    returned_banks = _member_returned_banks(conn, system_uid)
     bank_tracker = [
         {"bank": b, "returned": b in returned_banks}
         for b in BANKS
@@ -426,14 +449,18 @@ def bank_return(system_uid):
     """Flow 3: Simulate bank response."""
     bank = request.form.get("bank", "").strip()
     account_type = request.form.get("account_type", "").strip()
+
+    # Allow null/blank balance (bank found no account)
+    avg_raw = request.form.get("avg_balance", "").strip()
+    cur_raw = request.form.get("current_balance", "").strip()
     try:
-        avg_balance = float(request.form.get("avg_balance", 0))
+        avg_balance = float(avg_raw) if avg_raw else None
     except ValueError:
-        avg_balance = 0.0
+        avg_balance = None
     try:
-        current_balance = float(request.form.get("current_balance", 0))
+        current_balance = float(cur_raw) if cur_raw else None
     except ValueError:
-        current_balance = 0.0
+        current_balance = None
 
     now = datetime.now(timezone.utc).isoformat()
     conn = get_db()
@@ -484,8 +511,8 @@ def bank_return(system_uid):
 
     conn.commit()
 
-    # Trigger Flow 4
-    _flow4(conn, principal_fas)
+    # Trigger Flow 4 — per-member status update + household check
+    _flow4(conn, principal_fas, system_uid)
     conn.commit()
     conn.close()
 
