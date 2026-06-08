@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}New Case — DFA Bank Check Pipeline{% endblock %}
+{% block page_title %}New Case — Flow 1: Intake Engine{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:800px;">
+  <div class="card-title">Create New Case</div>
+  <p style="font-size:0.85rem; color:#64748b; margin-bottom:20px;">
+    Filling out this form triggers <strong>Flow 1: Intake Engine</strong>. A System UID will be generated automatically and the household category/threshold will be assigned based on the FAS number.
+  </p>
+  <form method="POST" action="/cases/new">
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label" for="fas_number">FAS Number <span style="color:#ef4444;">*</span></label>
+        <input class="form-control" type="text" id="fas_number" name="fas_number" placeholder="e.g. FAS1234" required>
+        <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">Last digit determines category: 0-3=Standard, 4-6=Priority, 7-9=High Risk</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="principal_fas">Principal FAS <span style="color:#ef4444;">*</span></label>
+        <input class="form-control" type="text" id="principal_fas" name="principal_fas" placeholder="e.g. FAS100">
+        <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">Primary FAS for household grouping</div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="aliases">Aliases (comma-separated)</label>
+      <input class="form-control" type="text" id="aliases" name="aliases" placeholder="e.g. John Smith, Johnny Smith, J. Smith">
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label" for="dob">Date of Birth</label>
+        <input class="form-control" type="text" id="dob" name="dob" placeholder="e.g. 1985-03-15">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="address">Address</label>
+        <input class="form-control" type="text" id="address" name="address" placeholder="e.g. 123 Main St, Anytown">
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label" for="assigned_officer">Assigned Officer <span style="color:#ef4444;">*</span></label>
+        <input class="form-control" type="text" id="assigned_officer" name="assigned_officer" placeholder="e.g. Officer Jones" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="assigned_manager">Assigned Manager</label>
+        <input class="form-control" type="text" id="assigned_manager" name="assigned_manager" placeholder="e.g. Manager Brown">
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label" for="bank_name">Bank Name</label>
+        <input class="form-control" type="text" id="bank_name" name="bank_name" placeholder="e.g. Chase Bank">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="bank_email">Bank Email</label>
+        <input class="form-control" type="email" id="bank_email" name="bank_email" placeholder="e.g. checks@chase.com">
+      </div>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-top:8px;">
+      <button type="submit" class="btn btn-primary">&#43; Create Case &amp; Run Flow 1</button>
+      <a href="/dashboard" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

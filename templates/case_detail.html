@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block title %}{{ case.system_uid }} — DFA Bank Check Pipeline{% endblock %}
+{% block page_title %}Case: {{ case.system_uid }}{% endblock %}
+
+{% block content %}
+
+{# ── Status Banners ── #}
+{% if case.status == 'Cleared' %}
+<div class="banner-cleared">
+  <div class="banner-icon">&#10003;</div>
+  <div>
+    <h3>CHECK CLEARED</h3>
+    <p>This case has passed household aggregation. Total balance is within the assigned threshold of ${{ "%.2f"|format(case.threshold) }}.</p>
+  </div>
+</div>
+{% elif case.status == 'Over Limit' %}
+<div class="banner-overlimit">
+  <div class="banner-top">
+    <div class="banner-icon">&#9888;</div>
+    <div>
+      <h3>OVER LIMIT — Suspension Letter Generated</h3>
+      <p>This household's total balance exceeds the assigned threshold of ${{ "%.2f"|format(case.threshold) }}.</p>
+    </div>
+  </div>
+  <div class="suspension-letter">DEPARTMENT OF FAMILY ASSISTANCE
+BANK CHECK SUSPENSION NOTICE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DATE:     {{ case.sent_at[:10] if case.sent_at else 'N/A' }}
+CASE ID:  {{ case.system_uid }}
+FAS #:    {{ case.fas_number }}
+SUBJECT:  {{ case.aliases }}
+
+Dear {{ case.bank_name or 'Financial Institution' }},
+
+It has been determined through the DFA Bank Check Processing
+Pipeline that the above-referenced individual(s) hold financial
+assets that exceed the program threshold for the {{ case.household_category }}
+household category (Threshold: ${{ "%.2f"|format(case.threshold) }}).
+
+Reported Balance: ${{ "%.2f"|format(case.current_balance or 0) }}
+Threshold:        ${{ "%.2f"|format(case.threshold) }}
+
+As a result, benefits for this household are hereby SUSPENDED
+pending a formal review by the assigned officer ({{ case.assigned_officer }})
+and manager ({{ case.assigned_manager or 'N/A' }}).
+
+This notice was generated automatically by the DFA Check Pipeline.
+Please retain this document for your records.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DFA Bank Check Processing System — CONFIDENTIAL</div>
+</div>
+{% endif %}
+
+{# ── Timeline ── #}
+<div class="card">
+  <div class="card-title">Pipeline Status Timeline</div>
+  {% set step_created = true %}
+  {% set step_roi = case.roi_status == 'Uploaded' %}
+  {% set step_sent = case.status in ('Sent', 'Return Received', 'Cleared', 'Over Limit') %}
+  {% set step_response = case.status in ('Return Received', 'Cleared', 'Over Limit') %}
+  {% set step_done = case.status in ('Cleared', 'Over Limit') %}
+
+  <div class="timeline">
+    <div class="tl-step {{ 'done' if step_created else '' }}">
+      <div class="tl-dot">{{ '✓' if step_created else '1' }}</div>
+      <div class="tl-label">Case Created</div>
+    </div>
+    <div class="tl-step {{ 'done' if step_roi else '' }}">
+      <div class="tl-dot">{{ '✓' if step_roi else '2' }}</div>
+      <div class="tl-label">ROI Uploaded</div>
+    </div>
+    <div class="tl-step {{ 'done' if step_sent else '' }}">
+      <div class="tl-dot">{{ '✓' if step_sent else '3' }}</div>
+      <div class="tl-label">Sent to Bank</div>
+    </div>
+    <div class="tl-step {{ 'done' if step_response else '' }}">
+      <div class="tl-dot">{{ '✓' if step_response else '4' }}</div>
+      <div class="tl-label">Response Received</div>
+    </div>
+    <div class="tl-step {{ 'done' if step_done else '' }}">
+      <div class="tl-dot">{{ '✓' if step_done else '5' }}</div>
+      <div class="tl-label">
+        {% if case.status == 'Cleared' %}Cleared
+        {% elif case.status == 'Over Limit' %}Over Limit
+        {% else %}Complete{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Action Buttons ── #}
+<div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:24px;">
+  {% if case.roi_status == 'Not Uploaded' %}
+  <form method="POST" action="/cases/{{ case.id }}/upload-roi" style="display:inline;">
+    <button type="submit" class="btn btn-warning">&#8679; Upload ROI (Simulate)</button>
+  </form>
+  {% endif %}
+
+  {% if case.status == 'Return Received' %}
+  <form method="POST" action="/household/aggregate/{{ case.principal_fas }}" style="display:inline;">
+    <button type="submit" class="btn btn-primary">&#9650; Run Household Aggregator (Flow 4)</button>
+  </form>
+  {% endif %}
+
+  <a href="/dashboard" class="btn btn-secondary">&larr; Back to Dashboard</a>
+</div>
+
+{# ── Simulate Bank Response ── #}
+{% if case.status == 'Sent' %}
+<div class="card">
+  <div class="card-title">Flow 3: Simulate Bank Response</div>
+  <p style="font-size:0.85rem; color:#64748b; margin-bottom:16px;">
+    Enter the balance reported by <strong>{{ case.bank_name or 'the bank' }}</strong>. This simulates the bank returning data and will automatically trigger Flow 4 (Household Aggregator).
+  </p>
+  <form method="POST" action="/cases/{{ case.id }}/bank-response" style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+    <div class="form-group" style="margin-bottom:0; min-width:200px;">
+      <label class="form-label" for="current_balance">Current Account Balance ($)</label>
+      <input class="form-control" type="number" step="0.01" min="0" id="current_balance" name="current_balance" placeholder="e.g. 3500.00" required>
+    </div>
+    <button type="submit" class="btn btn-warning">Submit Bank Response &amp; Run Flow 4</button>
+  </form>
+</div>
+{% endif %}
+
+{# ── Case Detail Fields ── #}
+<div class="card">
+  <div class="card-title">Case Details</div>
+  <div class="detail-grid">
+    <div class="detail-field">
+      <div class="field-label">System UID</div>
+      <div class="field-value">{{ case.system_uid }}</div>
+    </div>
+    <div class="detail-field">
+      <div class="field-label">FAS Number</div>
+      <div class="field-value">{{ case.fas_number or '—' }}</div>
+    </div>
+    <div class="detail-field">
+      <div class="field-label">Principal FAS</div>
+      <div class="field-value">{{ case.principal_fas or '—' }}</div>
+    </div>
+    <div class="detail-field">
+      <div class="field-label">Aliases</div>
+      <div class="field-value">{{ case.aliases or '—' }}</div>
+    </div>
+    <div class="detail-field">
+      <div class="field-label">Date of Birth</div>
+      <div class="field-value">{{ case.dob or '—' }}</div>
+    </div>
+    <div class="detail-field">
+      <div class="field-label">Address</div>
+      <div class="field-value">{{ case.address or '—' }}</div>
+    </div>
+    <div class="detail-field">
+      <div class="field-label">Assigned Officer</div>
+      <div class="field-value">{{ case.assigned_officer or '—' }}</div>
+    </div>
+    <div class="detail-field">
+      <div class="field-label">Assigned Manager</div>
+      <div class="field-value">{{ case.assigned_manager or '—' }}</div>
+    </div>
+    <div class="detail-field">
+      <div class="field-label">Status</div>
+      <div class="field-value">
+        {% if case.status == 'Pending' %}
+          <span class="badge badge-pending">Pending</span>
+        {% elif case.status == 'Sent' %}
+          <span class="badge badge-sent">Sent</span>
+        {% elif case.status == 'Return Received' %}
+          <span class="badge badge-return">Return Received</span>
+        {% elif case.status == 'Cleared' %}
+          <span class="badge badge-cleared">Cleared</span>
+        {% elif case.status == 'Over Limit' %}
+          <span class="badge badge-overlimit">Over Limit</span>
+        {% else %}
+          <span class="badge badge-pending">{{ case.status }}</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="detail-field">
+      <div class="field-label">ROI Status</div>
+      <div class="field-value">
+        {% if case.roi_status == 'Uploaded' %}
+          <span class="badge badge-uploaded">Uploaded</span>
+        {% else %}
+          <span class="badge badge-not-uploaded">Not Uploaded</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="detail-field">
+      <div class="field-label">ROI Link</div>
+      <div class="field-value">{{ case.roi_link or '—' }}</div>
+    </div>
+    <div class="detail-field">
+      <div class="field-label">Household Category</div>
+      <div class="field-value">{{ case.household_category or '—' }}</div>
+    </div>
+    <div class="detail-field">
+      <div class="field-label">Threshold</div>
+      <div class="field-value">${{ "%.2f"|format(case.threshold) if case.threshold else '—' }}</div>
+    </div>
+    <div class="detail-field">
+      <div class="field-label">Current Balance</div>
+      <div class="field-value">
+        {% if case.current_balance is not none and case.current_balance != '' %}
+          <strong>${{ "%.2f"|format(case.current_balance) }}</strong>
+          {% if case.threshold %}
+            {% if case.current_balance > case.threshold %}
+              <span style="color:#ef4444; font-size:0.78rem; margin-left:6px;">&#9650; Over threshold</span>
+            {% else %}
+              <span style="color:#22c55e; font-size:0.78rem; margin-left:6px;">&#9660; Within threshold</span>
+            {% endif %}
+          {% endif %}
+        {% else %}
+          —
+        {% endif %}
+      </div>
+    </div>
+    <div class="detail-field">
+      <div class="field-label">Bank Name</div>
+      <div class="field-value">{{ case.bank_name or '—' }}</div>
+    </div>
+    <div class="detail-field">
+      <div class="field-label">Bank Email</div>
+      <div class="field-value">{{ case.bank_email or '—' }}</div>
+    </div>
+    <div class="detail-field">
+      <div class="field-label">Created At</div>
+      <div class="field-value">{{ case.created_at[:19].replace('T', ' ') if case.created_at else '—' }}</div>
+    </div>
+    <div class="detail-field">
+      <div class="field-label">Sent At</div>
+      <div class="field-value">{{ case.sent_at[:19].replace('T', ' ') if case.sent_at else '—' }}</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

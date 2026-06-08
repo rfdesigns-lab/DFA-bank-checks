@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}DFA Bank Check Pipeline{% endblock %}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f0f2f5;
+      color: #1a1a2e;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 240px;
+      background: #1a1a2e;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+      position: fixed;
+      top: 0; left: 0;
+      height: 100vh;
+      z-index: 100;
+    }
+    .sidebar-brand {
+      padding: 24px 20px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .sidebar-brand h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #4fc3f7;
+      letter-spacing: 0.5px;
+    }
+    .sidebar-brand p {
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.5);
+      margin-top: 4px;
+    }
+    .sidebar nav {
+      padding: 16px 0;
+      flex: 1;
+    }
+    .sidebar nav a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 20px;
+      color: rgba(255,255,255,0.75);
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 500;
+      transition: background 0.15s, color 0.15s;
+    }
+    .sidebar nav a:hover, .sidebar nav a.active {
+      background: rgba(79,195,247,0.15);
+      color: #4fc3f7;
+    }
+    .sidebar nav a .icon { font-size: 1rem; width: 20px; text-align: center; }
+    .sidebar-footer {
+      padding: 16px 20px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.35);
+    }
+
+    /* Main content */
+    .main {
+      margin-left: 240px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .topbar {
+      background: #fff;
+      padding: 16px 32px;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .topbar h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #1a1a2e;
+    }
+    .page-content {
+      padding: 28px 32px;
+      flex: 1;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .badge-pending   { background: #e2e8f0; color: #64748b; }
+    .badge-sent      { background: #dbeafe; color: #1d4ed8; }
+    .badge-return    { background: #fef9c3; color: #92400e; }
+    .badge-cleared   { background: #dcfce7; color: #166534; }
+    .badge-overlimit { background: #fee2e2; color: #991b1b; }
+    .badge-uploaded  { background: #dcfce7; color: #166534; }
+    .badge-not-uploaded { background: #ffedd5; color: #9a3412; }
+
+    /* Cards */
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .card-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: #1a1a2e;
+    }
+
+    /* Stat cards */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px 24px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+      border-left: 4px solid #e2e8f0;
+    }
+    .stat-card.blue   { border-left-color: #3b82f6; }
+    .stat-card.orange { border-left-color: #f97316; }
+    .stat-card.indigo { border-left-color: #6366f1; }
+    .stat-card.green  { border-left-color: #22c55e; }
+    .stat-card .stat-value { font-size: 2rem; font-weight: 800; color: #1a1a2e; }
+    .stat-card .stat-label { font-size: 0.8rem; color: #64748b; margin-top: 4px; font-weight: 500; }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    th {
+      background: #f8fafc;
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid #f1f5f9;
+      color: #334155;
+      vertical-align: middle;
+    }
+    tr:hover td { background: #f8fafc; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:hover { opacity: 0.88; transform: translateY(-1px); }
+    .btn-primary   { background: #3b82f6; color: #fff; }
+    .btn-success   { background: #22c55e; color: #fff; }
+    .btn-warning   { background: #f97316; color: #fff; }
+    .btn-danger    { background: #ef4444; color: #fff; }
+    .btn-secondary { background: #e2e8f0; color: #334155; }
+    .btn-sm { padding: 5px 11px; font-size: 0.78rem; }
+
+    /* Form */
+    .form-group { margin-bottom: 18px; }
+    .form-label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+    .form-control {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1.5px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      color: #1a1a2e;
+      background: #fff;
+      transition: border-color 0.15s;
+    }
+    .form-control:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; }
+
+    /* Alert / Toast */
+    .alert {
+      padding: 14px 18px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .alert-danger  { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .alert-info    { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+
+    #toast {
+      position: fixed;
+      top: 20px; right: 20px;
+      padding: 14px 22px;
+      border-radius: 10px;
+      background: #1a1a2e;
+      color: #fff;
+      font-size: 0.875rem;
+      font-weight: 500;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+      z-index: 9999;
+      opacity: 0;
+      transform: translateY(-10px);
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+
+    /* Detail grid */
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .detail-field { }
+    .detail-field .field-label {
+      font-size: 0.74rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #94a3b8;
+      margin-bottom: 4px;
+    }
+    .detail-field .field-value {
+      font-size: 0.93rem;
+      color: #1e293b;
+      font-weight: 500;
+    }
+
+    /* Timeline */
+    .timeline { display: flex; gap: 0; margin: 24px 0; }
+    .tl-step {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+    .tl-step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      width: 100%;
+      height: 2px;
+      background: #e2e8f0;
+      z-index: 0;
+    }
+    .tl-step.done:not(:last-child)::after { background: #22c55e; }
+    .tl-dot {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: #e2e8f0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #94a3b8;
+      z-index: 1;
+      position: relative;
+    }
+    .tl-step.done .tl-dot {
+      background: #22c55e;
+      color: #fff;
+    }
+    .tl-step.active .tl-dot {
+      background: #3b82f6;
+      color: #fff;
+    }
+    .tl-label {
+      margin-top: 8px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .tl-step.done .tl-label { color: #16a34a; }
+    .tl-step.active .tl-label { color: #2563eb; }
+
+    /* Banner */
+    .banner-cleared {
+      background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+      border: 2px solid #22c55e;
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .banner-cleared .banner-icon { font-size: 2rem; }
+    .banner-cleared h3 { font-size: 1.3rem; font-weight: 800; color: #15803d; }
+    .banner-cleared p { font-size: 0.85rem; color: #166534; margin-top: 2px; }
+
+    .banner-overlimit {
+      background: linear-gradient(135deg, #fee2e2, #fecaca);
+      border: 2px solid #ef4444;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+    }
+    .banner-overlimit .banner-top {
+      display: flex; align-items: center; gap: 14px; margin-bottom: 16px;
+    }
+    .banner-overlimit .banner-icon { font-size: 2rem; }
+    .banner-overlimit h3 { font-size: 1.3rem; font-weight: 800; color: #991b1b; }
+    .banner-overlimit p { font-size: 0.85rem; color: #b91c1c; margin-top: 2px; }
+    .suspension-letter {
+      background: #fff;
+      border: 1px solid #fca5a5;
+      border-radius: 8px;
+      padding: 20px 24px;
+      font-family: "Courier New", monospace;
+      font-size: 0.82rem;
+      color: #374151;
+      line-height: 1.7;
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 900px) {
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+      .detail-grid { grid-template-columns: 1fr 1fr; }
+      .form-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <h2>DFA Check Pipeline</h2>
+      <p>Bank Inquiry Management</p>
+    </div>
+    <nav>
+      <a href="/dashboard" class="{% if request.path == '/dashboard' %}active{% endif %}">
+        <span class="icon">&#9632;</span> Dashboard
+      </a>
+      <a href="/cases/new" class="{% if request.path == '/cases/new' %}active{% endif %}">
+        <span class="icon">&#43;</span> New Case
+      </a>
+      <a href="#" id="batch-btn" onclick="runBatch(event)">
+        <span class="icon">&#9654;</span> Run Friday Batch
+      </a>
+    </nav>
+    <div class="sidebar-footer">DFA Bank Check v2.0</div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <h1>{% block page_title %}DFA Bank Check Pipeline{% endblock %}</h1>
+    </div>
+    <div class="page-content">
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    function showToast(msg, color) {
+      var t = document.getElementById('toast');
+      t.textContent = msg;
+      t.style.background = color || '#1a1a2e';
+      t.classList.add('show');
+      setTimeout(function(){ t.classList.remove('show'); }, 4000);
+    }
+
+    function runBatch(e) {
+      e.preventDefault();
+      fetch('/batch/run', { method: 'POST' })
+        .then(function(r){ return r.json(); })
+        .then(function(data) {
+          if (data.processed === 0) {
+            showToast('No eligible cases to batch.', '#64748b');
+          } else {
+            showToast('Batch complete: ' + data.processed + ' case(s) sent to banks.', '#1d4ed8');
+            setTimeout(function(){ window.location.href='/dashboard'; }, 1500);
+          }
+        })
+        .catch(function(){ showToast('Batch request failed.', '#dc2626'); });
+    }
+  </script>
+</body>
+</html>
