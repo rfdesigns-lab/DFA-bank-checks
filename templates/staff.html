@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Staff — DFA Bank Check Pipeline{% endblock %}
+{% block page_title %}Staff Management{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">Staff Members</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Full Name</th>
+          <th>Email</th>
+          <th>Role</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for member in staff %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><strong>{{ member.full_name }}</strong></td>
+          <td>{{ member.email }}</td>
+          <td>
+            {% if member.role == 'Manager' %}
+              <span class="badge badge-sent">Manager</span>
+            {% else %}
+              <span class="badge badge-pending">Officer</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="4" style="text-align:center; color:#94a3b8; padding:32px;">No staff found.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card" style="max-width:500px;">
+  <div class="card-title">Add Staff Member</div>
+  <form method="POST" action="/staff/add">
+    <div class="form-group">
+      <label class="form-label" for="full_name">Full Name <span style="color:#ef4444;">*</span></label>
+      <input class="form-control" type="text" id="full_name" name="full_name" placeholder="e.g. Jane Doe" required>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="email">Email <span style="color:#ef4444;">*</span></label>
+      <input class="form-control" type="email" id="email" name="email" placeholder="e.g. jane.doe@dfa.gov" required>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="role">Role <span style="color:#ef4444;">*</span></label>
+      <select class="form-control" id="role" name="role">
+        <option value="Officer">Officer</option>
+        <option value="Manager">Manager</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">&#43; Add Staff Member</button>
+  </form>
+</div>
+{% endblock %}

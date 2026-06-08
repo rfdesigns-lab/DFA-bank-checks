@@ -105,13 +105,15 @@
       text-transform: uppercase;
       letter-spacing: 0.4px;
     }
-    .badge-pending   { background: #e2e8f0; color: #64748b; }
-    .badge-sent      { background: #dbeafe; color: #1d4ed8; }
-    .badge-return    { background: #fef9c3; color: #92400e; }
-    .badge-cleared   { background: #dcfce7; color: #166534; }
-    .badge-overlimit { background: #fee2e2; color: #991b1b; }
-    .badge-uploaded  { background: #dcfce7; color: #166534; }
-    .badge-not-uploaded { background: #ffedd5; color: #9a3412; }
+    .badge-pending        { background: #e2e8f0; color: #64748b; }
+    .badge-sent           { background: #dbeafe; color: #1d4ed8; }
+    .badge-partial        { background: #fef3c7; color: #92400e; }
+    .badge-returned       { background: #fef9c3; color: #78350f; }
+    .badge-cleared        { background: #dcfce7; color: #166534; }
+    .badge-overlimit      { background: #fee2e2; color: #991b1b; }
+    .badge-incomplete     { background: #3b1818; color: #fca5a5; }
+    .badge-uploaded       { background: #dcfce7; color: #166534; }
+    .badge-not-uploaded   { background: #ffedd5; color: #9a3412; }
 
     /* Cards */
     .card {
@@ -131,23 +133,25 @@
     /* Stat cards */
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 14px;
       margin-bottom: 24px;
     }
     .stat-card {
       background: #fff;
       border-radius: 12px;
-      padding: 20px 24px;
+      padding: 18px 20px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.07);
       border-left: 4px solid #e2e8f0;
     }
-    .stat-card.blue   { border-left-color: #3b82f6; }
-    .stat-card.orange { border-left-color: #f97316; }
-    .stat-card.indigo { border-left-color: #6366f1; }
-    .stat-card.green  { border-left-color: #22c55e; }
-    .stat-card .stat-value { font-size: 2rem; font-weight: 800; color: #1a1a2e; }
-    .stat-card .stat-label { font-size: 0.8rem; color: #64748b; margin-top: 4px; font-weight: 500; }
+    .stat-card.blue    { border-left-color: #3b82f6; }
+    .stat-card.gray    { border-left-color: #94a3b8; }
+    .stat-card.indigo  { border-left-color: #6366f1; }
+    .stat-card.orange  { border-left-color: #f97316; }
+    .stat-card.green   { border-left-color: #22c55e; }
+    .stat-card.red     { border-left-color: #ef4444; }
+    .stat-card .stat-value { font-size: 1.8rem; font-weight: 800; color: #1a1a2e; }
+    .stat-card .stat-label { font-size: 0.75rem; color: #64748b; margin-top: 4px; font-weight: 500; }
 
     /* Table */
     .table-wrap { overflow-x: auto; }
@@ -218,6 +222,7 @@
       box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
     }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; }
+    .form-hint { font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
 
     /* Alert / Toast */
     .alert {
@@ -230,6 +235,16 @@
     .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
     .alert-danger  { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
     .alert-info    { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+    .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+
+    #batch-result {
+      display: none;
+      padding: 14px 18px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
 
     #toast {
       position: fixed;
@@ -255,7 +270,6 @@
       grid-template-columns: repeat(3, 1fr);
       gap: 16px;
     }
-    .detail-field { }
     .detail-field .field-label {
       font-size: 0.74rem;
       font-weight: 700;
@@ -321,7 +335,7 @@
     .tl-step.done .tl-label { color: #16a34a; }
     .tl-step.active .tl-label { color: #2563eb; }
 
-    /* Banner */
+    /* Banners */
     .banner-cleared {
       background: linear-gradient(135deg, #dcfce7, #bbf7d0);
       border: 2px solid #22c55e;
@@ -349,6 +363,21 @@
     .banner-overlimit .banner-icon { font-size: 2rem; }
     .banner-overlimit h3 { font-size: 1.3rem; font-weight: 800; color: #991b1b; }
     .banner-overlimit p { font-size: 0.85rem; color: #b91c1c; margin-top: 2px; }
+
+    .banner-partial {
+      background: linear-gradient(135deg, #fef3c7, #fde68a);
+      border: 2px solid #f59e0b;
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .banner-partial .banner-icon { font-size: 2rem; }
+    .banner-partial h3 { font-size: 1.3rem; font-weight: 800; color: #92400e; }
+    .banner-partial p { font-size: 0.85rem; color: #78350f; margin-top: 2px; }
+
     .suspension-letter {
       background: #fff;
       border: 1px solid #fca5a5;
@@ -361,6 +390,20 @@
       white-space: pre-wrap;
     }
 
+    /* Category info box */
+    .category-info {
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 0.82rem;
+      color: #0369a1;
+      margin-bottom: 8px;
+    }
+
+    @media (max-width: 1200px) {
+      .stats-grid { grid-template-columns: repeat(3, 1fr); }
+    }
     @media (max-width: 900px) {
       .stats-grid { grid-template-columns: 1fr 1fr; }
       .detail-grid { grid-template-columns: 1fr 1fr; }
@@ -381,11 +424,11 @@
       <a href="/cases/new" class="{% if request.path == '/cases/new' %}active{% endif %}">
         <span class="icon">&#43;</span> New Case
       </a>
-      <a href="#" id="batch-btn" onclick="runBatch(event)">
-        <span class="icon">&#9654;</span> Run Friday Batch
+      <a href="/staff" class="{% if request.path == '/staff' %}active{% endif %}">
+        <span class="icon">&#128100;</span> Staff
       </a>
     </nav>
-    <div class="sidebar-footer">DFA Bank Check v2.0</div>
+    <div class="sidebar-footer">DFA Bank Check v3.0</div>
   </aside>
 
   <div class="main">
@@ -413,10 +456,20 @@
       fetch('/batch/run', { method: 'POST' })
         .then(function(r){ return r.json(); })
         .then(function(data) {
-          if (data.processed === 0) {
-            showToast('No eligible cases to batch.', '#64748b');
+          var el = document.getElementById('batch-result');
+          if (el) {
+            el.style.display = 'block';
+            if (data.processed === 0 && data.skipped === 0) {
+              el.className = 'alert alert-info';
+              el.textContent = 'No eligible cases to batch — nothing to process.';
+            } else {
+              el.className = 'alert alert-success';
+              el.textContent = 'Batch complete: ' + data.processed + ' case(s) sent to banks. ' +
+                (data.skipped > 0 ? data.skipped + ' skipped (ROI not uploaded).' : '');
+            }
+            setTimeout(function(){ window.location.reload(); }, 2000);
           } else {
-            showToast('Batch complete: ' + data.processed + ' case(s) sent to banks.', '#1d4ed8');
+            showToast('Batch: ' + data.processed + ' sent, ' + data.skipped + ' skipped.', '#1d4ed8');
             setTimeout(function(){ window.location.href='/dashboard'; }, 1500);
           }
         })

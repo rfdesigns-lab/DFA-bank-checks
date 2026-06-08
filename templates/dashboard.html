@@ -3,12 +3,15 @@
 {% block page_title %}Dashboard{% endblock %}
 
 {% block content %}
+
+<div id="batch-result"></div>
+
 <div class="stats-grid">
   <div class="stat-card blue">
     <div class="stat-value">{{ total }}</div>
     <div class="stat-label">Total Cases</div>
   </div>
-  <div class="stat-card orange">
+  <div class="stat-card gray">
     <div class="stat-value">{{ pending_roi }}</div>
     <div class="stat-label">Pending ROI Upload</div>
   </div>
@@ -16,9 +19,17 @@
     <div class="stat-value">{{ sent }}</div>
     <div class="stat-label">Sent to Banks</div>
   </div>
+  <div class="stat-card orange">
+    <div class="stat-value">{{ partial }}</div>
+    <div class="stat-label">Partial Return</div>
+  </div>
   <div class="stat-card green">
-    <div class="stat-value">{{ resolved }}</div>
-    <div class="stat-label">Cleared / Over Limit</div>
+    <div class="stat-value">{{ cleared }}</div>
+    <div class="stat-label">Cleared</div>
+  </div>
+  <div class="stat-card red">
+    <div class="stat-value">{{ over_limit }}</div>
+    <div class="stat-label">Over Limit</div>
   </div>
 </div>
 
@@ -35,52 +46,61 @@
       <thead>
         <tr>
           <th>System UID</th>
-          <th>FAS #</th>
-          <th>Aliases</th>
+          <th>Principal FAS</th>
+          <th>Client Name(s)</th>
           <th>Officer</th>
-          <th>Bank</th>
           <th>Status</th>
           <th>ROI Status</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
-        {% for case in cases %}
+        {% for row in uid_rows %}
         <tr>
-          <td><strong>{{ case.system_uid }}</strong></td>
-          <td>{{ case.fas_number }}</td>
-          <td style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ case.aliases }}">{{ case.aliases }}</td>
-          <td>{{ case.assigned_officer }}</td>
-          <td>{{ case.bank_name or '—' }}</td>
+          <td><strong>{{ row.system_uid }}</strong></td>
+          <td>{{ row.principal_fas or '—' }}</td>
+          <td style="max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ row.all_aliases }}">
+            {{ row.all_aliases or row.client_name or '—' }}
+          </td>
+          <td style="font-size:0.82rem;">{{ row.assigned_officer or '—' }}</td>
           <td>
-            {% if case.status == 'Pending' %}
+            {% if row.status == 'Pending' %}
               <span class="badge badge-pending">Pending</span>
-            {% elif case.status == 'Sent' %}
-              <span class="badge badge-sent">Sent</span>
-            {% elif case.status == 'Return Received' %}
-              <span class="badge badge-return">Return Received</span>
-            {% elif case.status == 'Cleared' %}
+            {% elif row.status == 'Sent to Banks' %}
+              <span class="badge badge-sent">Sent to Banks</span>
+            {% elif row.status == 'Partial Return' %}
+              <span class="badge badge-partial">Partial Return</span>
+            {% elif row.status == 'Returned' %}
+              <span class="badge badge-returned">Returned</span>
+            {% elif row.status == 'Cleared' %}
               <span class="badge badge-cleared">Cleared</span>
-            {% elif case.status == 'Over Limit' %}
+            {% elif row.status == 'OVER LIMIT' %}
               <span class="badge badge-overlimit">Over Limit</span>
+            {% elif row.status == 'Incomplete' %}
+              <span class="badge badge-incomplete">Incomplete</span>
             {% else %}
-              <span class="badge badge-pending">{{ case.status }}</span>
+              <span class="badge badge-pending">{{ row.status }}</span>
             {% endif %}
           </td>
           <td>
-            {% if case.roi_status == 'Uploaded' %}
+            {% if row.roi_status == 'Uploaded' %}
               <span class="badge badge-uploaded">Uploaded</span>
             {% else %}
               <span class="badge badge-not-uploaded">Not Uploaded</span>
             {% endif %}
           </td>
-          <td>
-            <a href="/cases/{{ case.id }}" class="btn btn-secondary btn-sm">View</a>
+          <td style="white-space:nowrap;">
+            <a href="/cases/{{ row.system_uid }}" class="btn btn-secondary btn-sm">View</a>
+            {% if row.roi_status == 'Not Uploaded' %}
+            <form method="POST" action="/cases/{{ row.system_uid }}/upload-roi" style="display:inline; margin-left:4px;">
+              <button type="submit" class="btn btn-warning btn-sm">Upload ROI</button>
+            </form>
+            {% endif %}
           </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="8" style="text-align:center; color:#94a3b8; padding:32px;">
+          <td colspan="7" style="text-align:center; color:#94a3b8; padding:32px;">
             No cases yet. <a href="/cases/new" style="color:#3b82f6;">Create your first case &rarr;</a>
           </td>
         </tr>
