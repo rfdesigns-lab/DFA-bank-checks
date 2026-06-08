@@ -1,0 +1,2 @@
+[console_scripts]
+check-validator = src.cli:main
