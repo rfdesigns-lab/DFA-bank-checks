@@ -479,10 +479,13 @@
       .topbar-hamburger { display: inline-flex; }
       .topbar h1 { font-size: 1rem; }
 
-      .page-content { padding: 14px 14px 48px; }
+      .page-content { padding: 12px 12px 48px; }
 
-      /* Stats: 2 columns on mobile, 3 on wider phones */
-      .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+      /* Stats: 3 columns × 2 rows so all 6 show without scrolling */
+      .stats-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      .stat-card { padding: 12px 10px; border-radius: 10px; }
+      .stat-card .stat-value { font-size: 1.3rem; }
+      .stat-card .stat-label { font-size: 0.65rem; }
 
       .card { padding: 16px; border-radius: 10px; }
 
@@ -532,9 +535,12 @@
 
     /* ── Small phones ── */
     @media (max-width: 400px) {
-      .stats-grid { grid-template-columns: 1fr 1fr; }
+      .stats-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+      .stat-card .stat-value { font-size: 1.1rem; }
+      .stat-card .stat-label { font-size: 0.6rem; }
       .detail-grid { grid-template-columns: 1fr; }
-      .topbar h1 { font-size: 0.9rem; }
+      .topbar h1 { font-size: 0.88rem; }
+      .page-content { padding: 10px 10px 48px; }
     }
   </style>
 </head>

@@ -99,52 +99,88 @@
       </div>
 
       {# ── Expanded member detail rows ── #}
-      <div class="hh-detail" id="hh-{{ hh_id }}" style="display:none;">
-        <table class="member-table">
-          <thead>
-            <tr>
-              <th>System UID</th>
-              <th>Name / Alias</th>
-              <th>Individual FAS</th>
-              <th>Status</th>
-              <th>ROI</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
+          <div id="hh-{{ hh_id }}" style="display:none;">
+        <div class="hh-detail">
+          {# Desktop table view #}
+          <table class="member-table desktop-only">
+            <thead>
+              <tr>
+                <th>System UID</th>
+                <th>Name / Alias</th>
+                <th>Individual FAS</th>
+                <th>Status</th>
+                <th>ROI</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for m in hh.members %}
+              <tr>
+                <td><span class="mono uid-cell">{{ m.system_uid }}</span></td>
+                <td><strong>{{ m.client_name }}</strong></td>
+                <td>{{ m.individual_fas or '—' }}</td>
+                <td>
+                  {% if m.status == 'Pending' %}<span class="badge badge-pending">Pending</span>
+                  {% elif m.status == 'Sent to Banks' %}<span class="badge badge-sent">Sent to Banks</span>
+                  {% elif m.status == 'Partial Return' %}<span class="badge badge-partial">Partial Return</span>
+                  {% elif m.status == 'Cleared' %}<span class="badge badge-cleared">Cleared</span>
+                  {% elif m.status == 'OVER LIMIT' %}<span class="badge badge-overlimit">Over Limit</span>
+                  {% elif m.status == 'Incomplete' %}<span class="badge badge-incomplete">Incomplete</span>
+                  {% else %}<span class="badge badge-pending">{{ m.status }}</span>{% endif %}
+                </td>
+                <td>
+                  {% if m.roi_status == 'Uploaded' %}<span class="badge badge-uploaded">&#10003; Uploaded</span>
+                  {% else %}<span class="badge badge-not-uploaded">&#9888; Not Uploaded</span>{% endif %}
+                </td>
+                <td style="white-space:nowrap;">
+                  <a href="/cases/{{ m.system_uid }}" class="btn btn-secondary btn-sm">View</a>
+                  {% if m.roi_status == 'Not Uploaded' %}
+                  <form method="POST" action="/cases/{{ m.system_uid }}/upload-roi" style="display:inline; margin-left:4px;">
+                    <button type="submit" class="btn btn-warning btn-sm">&#8679; ROI</button>
+                  </form>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+          {# Mobile card view #}
+          <div class="member-cards mobile-only">
             {% for m in hh.members %}
-            <tr>
-              <td><span class="mono" style="font-size:0.82rem;">{{ m.system_uid }}</span></td>
-              <td><strong>{{ m.client_name }}</strong></td>
-              <td>{{ m.individual_fas or '—' }}</td>
-              <td>
+            <div class="member-card">
+              <div class="member-card-top">
+                <div>
+                  <div class="member-card-name">{{ m.client_name }}</div>
+                  <div class="member-card-uid">{{ m.system_uid }}</div>
+                </div>
                 {% if m.status == 'Pending' %}<span class="badge badge-pending">Pending</span>
-                {% elif m.status == 'Sent to Banks' %}<span class="badge badge-sent">Sent to Banks</span>
-                {% elif m.status == 'Partial Return' %}<span class="badge badge-partial">Partial Return</span>
+                {% elif m.status == 'Sent to Banks' %}<span class="badge badge-sent">Sent</span>
+                {% elif m.status == 'Partial Return' %}<span class="badge badge-partial">Partial</span>
                 {% elif m.status == 'Cleared' %}<span class="badge badge-cleared">Cleared</span>
                 {% elif m.status == 'OVER LIMIT' %}<span class="badge badge-overlimit">Over Limit</span>
                 {% elif m.status == 'Incomplete' %}<span class="badge badge-incomplete">Incomplete</span>
                 {% else %}<span class="badge badge-pending">{{ m.status }}</span>{% endif %}
-              </td>
-              <td>
-                {% if m.roi_status == 'Uploaded' %}
-                  <span class="badge badge-uploaded">&#10003; Uploaded</span>
-                {% else %}
-                  <span class="badge badge-not-uploaded">&#9888; Not Uploaded</span>
-                {% endif %}
-              </td>
-              <td style="white-space:nowrap;">
-                <a href="/cases/{{ m.system_uid }}" class="btn btn-secondary btn-sm">View</a>
+              </div>
+              <div class="member-card-meta">
+                <span>FAS: {{ m.individual_fas or '—' }}</span>
+                <span>ROI:
+                  {% if m.roi_status == 'Uploaded' %}<span style="color:#16a34a;font-weight:700;">&#10003; Uploaded</span>
+                  {% else %}<span style="color:#9a3412;">&#9888; Not Uploaded</span>{% endif %}
+                </span>
+              </div>
+              <div class="member-card-actions">
+                <a href="/cases/{{ m.system_uid }}" class="btn btn-secondary btn-sm" style="flex:1;">View Check</a>
                 {% if m.roi_status == 'Not Uploaded' %}
-                <form method="POST" action="/cases/{{ m.system_uid }}/upload-roi" style="display:inline; margin-left:4px;">
-                  <button type="submit" class="btn btn-warning btn-sm">&#8679; ROI</button>
+                <form method="POST" action="/cases/{{ m.system_uid }}/upload-roi" style="flex:1;">
+                  <button type="submit" class="btn btn-warning btn-sm" style="width:100%;">&#8679; Upload ROI</button>
                 </form>
                 {% endif %}
-              </td>
-            </tr>
+              </div>
+            </div>
             {% endfor %}
-          </tbody>
-        </table>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -194,13 +230,50 @@
 .hh-officer   { min-width: 140px; }
 .hh-status    { min-width: 100px; }
 
+/* ── Desktop/Mobile visibility helpers ── */
+.desktop-only { display: table; }
+.mobile-only  { display: none; }
+
+/* ── Member cards (mobile) ── */
+.member-cards { display: flex; flex-direction: column; gap: 0; }
+.member-card {
+  padding: 14px 16px;
+  border-bottom: 1px solid #e9eef3;
+  background: #fff;
+}
+.member-card:last-child { border-bottom: none; }
+.member-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.member-card-name { font-weight: 700; font-size: 0.95rem; color: #1e293b; }
+.member-card-uid  { font-family: "Courier New", monospace; font-size: 0.72rem; color: #94a3b8; margin-top: 2px; }
+.member-card-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.member-card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── UID cell — no wrap ── */
+.uid-cell { white-space: nowrap; font-size: 0.8rem; }
+
 @media (max-width: 768px) {
-  .hh-header { gap: 10px; padding: 12px 14px; }
+  .hh-header { gap: 8px; padding: 12px 14px; }
   .hh-cat, .hh-threshold, .hh-officer { display: none; }
-  .hh-fas     { min-width: 80px; }
-  .hh-members { min-width: 120px; }
+  .hh-fas     { min-width: 72px; }
+  .hh-members { min-width: 110px; }
   .hh-status  { min-width: 80px; }
-  .member-table th, .member-table td { padding: 8px 10px; }
+  .desktop-only { display: none !important; }
+  .mobile-only  { display: block; }
+  .alias-chip { font-size: 0.7rem; padding: 2px 7px; }
+  .label-tiny { font-size: 0.6rem; }
 }
 
 .alias-chip {
